@@ -59,6 +59,8 @@ export default function Page() {
         <div className="nav-right"><span className="network-status"><i /> DEVNET</span><a className="nav-cta" href="#simulator">RUN SIMULATION <ArrowRight size={14} /></a></div>
       </header>
 
+      <div className="protocol-strip" aria-label="Protocol telemetry"><span><i className="telemetry-dot" /> LIVE NETWORK</span><span>MAGICBLOCK / EPHEMERAL EXECUTION</span><span>BLOCK 284,719,402</span><span className="strip-right">LATENCY <b>42ms</b> · FINALITY <b>0.98</b></span></div>
+
       <section className="hero-section motion-enter" id="top">
         <div className="hero-copy">
           <div className="eyebrow"><span className="status-pip" /> MAGICBLOCK-POWERED EMERGENCY INFRASTRUCTURE</div>

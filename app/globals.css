@@ -47,3 +47,15 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 @media (max-width: 480px) { .brand { font-size: 11px; }.nav-cta { padding: 10px; font-size: 9px; }.hero-copy h1 { font-size: 42px; }.hero-visual { min-height: 330px; }.visual-amount { font-size: 42px; margin-top: 65px; }.visual-route { font-size: 8px; }.position-value { font-size: 42px; }.metrics-grid, .sealed-grid { grid-template-columns: 1fr; }.crash-values { gap: 20px; }.crash-panel, .position-card, .rescue-cta, .zone-panel, .matched-panel, .settlement-hero { padding: 24px; }.proof-stat strong { font-size: 82px; }.record-modal { padding: 28px 22px; }.record-row { gap: 18px; }.record-row strong { text-align: right; } }
 @media (max-width: 820px) { .phase-rail { scrollbar-width: thin; scrollbar-color: #4b416f transparent; }.phase-step i { width: 28px; margin-inline: 8px; }.fallback-rail-label { margin-left: 12px; }.site-footer > div:last-child { flex-wrap: wrap; } }
 @media (prefers-reduced-motion: reduce) { .hero-visual:hover, .primary-button:hover, .nav-cta:hover, .rescue-button:hover, .match-button:hover, .settle-button:hover, .record-button:hover { transform: none; box-shadow: none; } }
+
+.protocol-strip { min-height: 34px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 24px; color: #697482; font: 9px var(--font-data); letter-spacing: .1em; white-space: nowrap; overflow: auto; }
+.protocol-strip span { display: inline-flex; align-items: center; gap: 7px; }
+.protocol-strip b { color: var(--foreground); font-weight: 500; }
+.protocol-strip .strip-right { margin-left: auto; }
+.telemetry-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); box-shadow: 0 0 9px var(--green); animation: status-pulse 1.8s ease-in-out infinite; }
+.hero-visual { background: #0c1015; border-color: #3e4753; box-shadow: 18px 18px 0 #151a21, inset 0 0 0 1px #1b222c; }
+.hero-visual:before { content: 'EXECUTION SURFACE / 01'; position: absolute; top: 72px; left: 23px; color: #586473; font: 9px var(--font-data); letter-spacing: .12em; }
+.visual-metrics { border-block: 1px solid #29313b; padding-block: 22px; }
+.visual-route { margin-top: 40px; padding-top: 18px; border-top: 1px solid #29313b; }
+.simulator-section { background: linear-gradient(180deg, transparent, #0d1118 42%, transparent); }
+@media (max-width: 820px) { .protocol-strip { gap: 15px; padding-right: 4px; }.protocol-strip .strip-right { margin-left: 0; }.hero-visual:before { top: 68px; } }
