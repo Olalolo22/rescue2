@@ -1,142 +1,56 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  ArrowDown,
-  ArrowRight,
-  Check,
-  ChevronRight,
-  CircleAlert,
-  Clock3,
-  Copy,
-  ExternalLink,
-  FileCheck2,
-  LockKeyhole,
-  Radio,
-  ShieldAlert,
-  ShieldCheck,
-  Siren,
-  TriangleAlert,
-  X,
+  ArrowRight, Check, ChevronRight, CircleAlert, Clock3, Copy, ExternalLink,
+  FileCheck2, LockKeyhole, Radio, ShieldAlert, ShieldCheck, Siren, TriangleAlert, X,
 } from 'lucide-react'
 
-type Phase = 'healthy' | 'at-risk' | 'intervention' | 'matched' | 'settled' | 'fallback'
-
+type Phase = 'healthy' | 'risk' | 'intervention' | 'matched' | 'settled' | 'expired'
 const phases: { id: Phase; label: string }[] = [
-  { id: 'healthy', label: 'HEALTHY' },
-  { id: 'at-risk', label: 'AT RISK' },
-  { id: 'intervention', label: 'INTERVENTION' },
-  { id: 'matched', label: 'MATCHED' },
-  { id: 'settled', label: 'SETTLED' },
+  { id: 'healthy', label: 'HEALTHY' }, { id: 'risk', label: 'AT RISK' },
+  { id: 'intervention', label: 'TEE INTERVENTION' }, { id: 'matched', label: 'MATCHED' }, { id: 'settled', label: 'SETTLED' },
 ]
 
 export default function Page() {
   const [phase, setPhase] = useState<Phase>('healthy')
   const [seconds, setSeconds] = useState(60)
-  const [recordOpen, setRecordOpen] = useState(false)
-
+  const [mevLog, setMevLog] = useState<string[]>([])
+  const [receipt, setReceipt] = useState(false)
+  const index = useMemo(() => phase === 'expired' ? 2 : phases.findIndex((item) => item.id === phase), [phase])
   useEffect(() => {
     if (phase !== 'intervention') return
-    if (seconds <= 0) {
-      setPhase('fallback')
-      return
-    }
-    const timer = window.setTimeout(() => setSeconds((value) => Math.max(0, value - 1)), 1000)
-    return () => window.clearTimeout(timer)
+    if (seconds <= 0) { setPhase('expired'); return }
+    const timeout = window.setTimeout(() => setSeconds((value) => value - 1), 1000)
+    return () => window.clearTimeout(timeout)
   }, [phase, seconds])
-
-  const activeIndex = useMemo(() => phase === 'fallback' ? 2 : phases.findIndex((item) => item.id === phase), [phase])
-  const reset = () => { setPhase('healthy'); setSeconds(60); setRecordOpen(false) }
-  const beginRisk = () => { setPhase('at-risk'); setSeconds(60); document.getElementById('simulator')?.scrollIntoView({ behavior: 'smooth' }) }
-
-  return (
-    <main className="site-shell">
-      <header className="site-nav">
-        <a className="brand" href="#top" aria-label="Rescue Protocol home"><span className="brand-mark"><Siren size={15} /></span><span>RESCUE <b>PROTOCOL</b></span></a>
-        <nav className="nav-links" aria-label="Main navigation">
-          <a href="#problem">THE PROBLEM</a><a href="#mechanism">MECHANISM</a><a href="#simulator">SIMULATE</a>
-        </nav>
-        <div className="nav-right"><span className="network-status"><i /> DEVNET</span><a className="nav-cta" href="#simulator">RUN SIMULATION <ArrowRight size={14} /></a></div>
-      </header>
-
-      <div className="protocol-strip" aria-label="Protocol telemetry"><span><i className="telemetry-dot" /> LIVE NETWORK</span><span>MAGICBLOCK / EPHEMERAL EXECUTION</span><span>BLOCK 284,719,402</span><span className="strip-right">LATENCY <b>42ms</b> · FINALITY <b>0.98</b></span></div>
-
-      <section className="hero-section motion-enter" id="top">
-        <div className="hero-copy">
-          <div className="eyebrow"><span className="status-pip" /> MAGICBLOCK-POWERED EMERGENCY INFRASTRUCTURE</div>
-          <h1>Liquidation protection for the moment <em>before</em> liquidation.</h1>
-          <p className="hero-lede">Rescue moves an unsafe position into a fast, confidential intervention window—then commits the best outcome back to Solana.</p>
-          <div className="hero-actions"><button className="primary-button" onClick={beginRisk}>RUN THE RESCUE SIMULATION <ArrowRight size={16} /></button><a className="text-link" href="#mechanism">SEE HOW IT WORKS <ArrowDown size={14} /></a></div>
-          <div className="hero-proof"><span><Radio size={14} /> LIVE MECHANISM DEMO</span><span><LockKeyhole size={14} /> SEALED COMPETITION</span><span><ShieldCheck size={14} /> FAILS OPEN</span></div>
-        </div>
-        <div className="hero-visual" aria-label="Rescue protocol architecture preview">
-          <div className="visual-topline"><span>POSITION RP-0427-ALPHA</span><span className="visual-live"><i /> MONITORED</span></div>
-          <div className="visual-amount">$12,480<span> collateralized debt position</span></div>
-          <div className="visual-metrics"><Metric label="SOL PRICE" value="$100.00" /><Metric label="HEALTH FACTOR" value="1.31" /><Metric label="STATUS" value="SAFE" tone="green" /></div>
-          <div className="visual-route"><span>BASE SOLANA</span><i /><b>WAITING FOR INCIDENT</b></div>
-          <div className="visual-corner">01 / 05</div>
-        </div>
-      </section>
-
-      <section className="thesis-section" id="problem">
-        <div className="section-label">THE IMPOSSIBLE MOMENT</div>
-        <div className="thesis-grid"><h2>Public liquidation is a race the borrower has already lost.</h2><div><p>When collateral crosses the danger line, normal Solana gives the market one public outcome: liquidate fast, compete in the open, destroy value.</p><p>Rescue creates a private moment between risk and liquidation—long enough for a better intervention to exist.</p></div></div>
-        <div className="contrast-row"><Contrast label="PUBLIC LIQUIDATION" items={['Public keeper race', 'Competitors read the same state', '8.00% borrower penalty']} tone="danger" /><div className="contrast-arrow"><ArrowRight /></div><Contrast label="RESCUE INTERVENTION" items={['Confidential rescue window', 'Bids remain sealed', 'Competitive 2.50% outcome']} tone="safe" /></div>
-      </section>
-
-      <section className="mechanism-section" id="mechanism">
-        <div className="section-label">THE MAGICBLOCK PRIMITIVE</div>
-        <div className="mechanism-heading"><h2>One temporary execution layer.<br /><em>One better outcome.</em></h2><p>Rescue is infrastructure presented as a product: delegate the position, run the emergency at high frequency, commit the result.</p></div>
-        <div className="architecture"><ArchitectureStep number="01" title="BASE SOLANA" copy="Position crosses its liquidation threshold." /><div className="arch-line"><span>DELEGATE</span><i /></div><ArchitectureStep number="02" title="EPHEMERAL ROLLUP" copy="MagicBlock enables fast, confidential auction state." active /><div className="arch-line"><span>COMMIT</span><i /></div><ArchitectureStep number="03" title="BASE SOLANA" copy="Settlement and RescueRecord become verifiable." /></div>
-      </section>
-
-      <section className="simulator-section motion-section" id="simulator">
-        <div className="simulator-intro"><div><div className="section-label">LIVE PROTOCOL DEMO</div><h2>Trigger the emergency.</h2><p>Watch a healthy position move through the exact lifecycle Rescue is built to protect.</p></div><div className="incident-id" role="status" aria-live="polite"><span>INCIDENT</span><strong>RP-0427-ALPHA</strong><small>{phase === 'healthy' ? 'AWAITING TRIGGER' : phase === 'fallback' ? 'FAIL-OPEN COMPLETE' : 'ACTIVE SIMULATION'}</small></div></div>
-        <div className="phase-rail" aria-label="Rescue lifecycle">{phases.map((item, index) => <div key={item.id} className={`phase-step ${index < activeIndex ? 'done' : ''} ${item.id === phase ? 'current' : ''}`}><span>{index < activeIndex ? <Check size={13} /> : index + 1}</span><b>{item.label}</b>{index < phases.length - 1 && <i />}</div>)}{phase === 'fallback' && <div className="fallback-rail-label"><TriangleAlert size={13} /> EXPIRED / FAIL-OPEN</div>}</div>
-        {phase === 'healthy' && <HealthyState onCrash={beginRisk} />}
-        {phase === 'at-risk' && <AtRiskState onRescue={() => { setPhase('intervention'); setSeconds(60) }} />}
-        {phase === 'intervention' && <InterventionZone seconds={seconds} onMatch={() => setPhase('matched')} onExpire={() => setPhase('fallback')} />}
-        {phase === 'matched' && <MatchedState onSettle={() => setPhase('settled')} />}
-        {phase === 'settled' && <SettledState onRecord={() => setRecordOpen(true)} onReset={reset} />}
-        {phase === 'fallback' && <FallbackState onReset={reset} />}
-      </section>
-
-      <section className="proof-section"><div className="proof-copy"><div className="section-label">WHY IT MATTERS</div><h2>The technical win is the borrower outcome.</h2><p>MagicBlock makes a high-speed, sealed rescue auction possible. The result is simple enough to remember: less value extracted, more value returned.</p><a className="text-link" href="#simulator">RUN THE INCIDENT AGAIN <ArrowRight size={14} /></a></div><div className="proof-stat"><span>RESCUE OUTCOME</span><strong>50%</strong><b>BORROWER SURPLUS SAVED</b><small>8.00% public liquidation → 2.50% rescue</small></div></section>
-
-      <footer className="site-footer"><div className="brand"><span className="brand-mark"><Siren size={15} /></span><span>RESCUE <b>PROTOCOL</b></span></div><p>A MagicBlock-powered liquidation intervention primitive for Solana.</p><div><a href="#mechanism">TECHNICAL FLOW <ExternalLink size={13} /></a><button onClick={reset}>RESET DEMO</button></div></footer>
-      {recordOpen && <RescueRecord onClose={() => setRecordOpen(false)} />}
-    </main>
-  )
+  const crash = () => { setPhase('risk'); setSeconds(60) }
+  const reset = () => { setPhase('healthy'); setSeconds(60); setMevLog([]); setReceipt(false) }
+  const probe = () => setMevLog((current) => [...current, `[22:42:${String(7 + current.length).padStart(2, '0')}] ❌ TRANSACTION REJECTED — Error 3007`])
+  return <main className="hud-shell">
+    <header className="hud-nav">
+      <a className="hud-brand" href="#top"><span><Siren size={16} /></span> RESCUE <b>PROTOCOL</b></a>
+      <div className="telemetry"><Telemetry label="SOLANA DEVNET" value="Slot 284,719,402" /><Telemetry label="MAGICBLOCK TEE" value="OPERATIONAL" good /><Telemetry label="PYTH SOL/USD" value="$100.00" /></div>
+      <div className="hud-actions"><div className="view-tabs"><button className="selected"><Radio size={13} /> Live Console</button><button>Invariant Checks</button><button>Proof Inspector</button></div><button className="incident-button" onClick={crash}><Siren size={14} /> Simulate Incident</button></div>
+    </header>
+    <section className="mission-head" id="top"><div><div className="hud-eyebrow"><span className="pulse" /> INSTITUTIONAL RESCUE CONSOLE / DEVNET</div><h1>Defense against the <em>liquidation race.</em></h1><p>Monitor a borrower position, trigger the incident, and watch a sealed MagicBlock intervention commit a better outcome to Solana.</p></div><div className="program-badge"><span>DEVNET PROGRAM</span><strong>GCcUbg...TtxDBT</strong><small>RESCUE PROTOCOL v1.0</small></div></section>
+    <section className="lifecycle"><div className="lifecycle-label">PROTOCOL LIFECYCLE <span>RP-0427-ALPHA</span></div><div className="lifecycle-rail">{phases.map((item, i) => <button key={item.id} onClick={() => item.id === 'intervention' ? setPhase('intervention') : setPhase(item.id)} className={`${i < index ? 'done' : ''} ${item.id === phase ? 'current' : ''}`}><span>{i < index ? <Check size={13} /> : i + 1}</span><b>{item.label}</b>{item.id === 'healthy' && <small>HF 1.31</small>}{item.id === 'risk' && <small>HF 0.88</small>}{item.id === 'intervention' && <small>60s AUCTION</small>}{item.id === 'matched' && <small>2.50% PENALTY</small>}{item.id === 'settled' && <small>L1 ANCHOR</small>}</button>)}</div></section>
+    <section className="cockpit-grid">
+      <PositionCard phase={phase} onCrash={crash} onRestore={reset} />
+      <InterventionCard phase={phase} seconds={seconds} onEnter={() => { setPhase('intervention'); setSeconds(60) }} onMatch={() => setPhase('matched')} onExpire={() => setPhase('expired')} />
+      <MevTerminal logs={mevLog} onProbe={probe} />
+    </section>
+    <section className="surplus-banner"><div><div className="hud-eyebrow cyan"><Check size={14} /> SETTLEMENT COMPARISON / VERIFIED PATH</div><h2>Rescue protects the borrower&apos;s <em>remaining equity.</em></h2><p>Public liquidation extracts value at speed. The sealed reverse auction preserves it through competitive intervention.</p></div><div className="surplus-compare"><div><span>PUBLIC LIQUIDATION</span><b>8.00%</b><small>−$72.00 equity lost</small></div><ChevronRight /><div className="cyan"><span>RESCUE WINNER</span><b>2.50%</b><small>−$22.50 equity lost</small></div></div><div className="surplus-stat"><span>BORROWER SURPLUS SAVED</span><strong>+$49.50</strong><small>+5.50% retained equity</small></div><button className="receipt-trigger" onClick={() => setReceipt(true)}><FileCheck2 size={15} /> Inspect RescueRecord PDA <ExternalLink size={13} /></button></section>
+    {receipt && <Receipt onClose={() => setReceipt(false)} />}
+    <footer className="hud-footer"><span><Siren size={14} /> RESCUE PROTOCOL / MAGICBLOCK DEFENSE HUD</span><button onClick={reset}>RESET SIMULATION</button></footer>
+  </main>
 }
 
-function HealthyState({ onCrash }: { onCrash: () => void }) { return <div className="demo-state quiet-layout"><section className="position-card panel"><div className="panel-kicker"><ShieldCheck size={16} /> MONITORED POSITION <span className="safe-tag">SAFE</span></div><div className="position-value">$12,480.00</div><div className="position-sub">SOL collateralized debt position</div><div className="metrics-grid"><Metric label="SOL PRICE" value="$100.00" /><Metric label="HEALTH FACTOR" value="1.31" /><Metric label="LIQUIDATION THRESHOLD" value="$86.00" /></div><button className="primary-button trigger-button" onClick={onCrash}><Siren size={17} /> SIMULATE MARKET DROP <ArrowRight size={16} /></button><p className="fine-print">Trigger a controlled market event to observe the emergency response.</p></section><aside className="demo-note"><span className="section-label">THE RESCUE PRINCIPLE</span><h3>Liquidation is not inevitable.</h3><p>When collateral crosses the danger line, Rescue buys the borrower a private moment to find a better outcome.</p><div className="principle-line"><LockKeyhole size={15} /><span>CONFIDENTIAL BY DEFAULT</span></div><div className="principle-line"><ShieldCheck size={15} /><span>FAILS OPEN, NEVER GUARANTEES</span></div></aside></div> }
+function Telemetry({ label, value, good }: { label: string; value: string; good?: boolean }) { return <div className="telemetry-item"><span><i className={good ? 'good' : ''} />{label}</span><b>{value}</b></div> }
+function PositionCard({ phase, onCrash, onRestore }: { phase: Phase; onCrash: () => void; onRestore: () => void }) { const risk = phase !== 'healthy'; return <section className={`hud-card position-card ${risk ? 'danger-card' : ''}`}><div className="card-top"><span><ShieldCheck size={15} /> MONITORED BORROWER POSITION</span><b className={risk ? 'danger' : 'good'}>{risk ? 'AT RISK' : 'HEALTHY'}</b></div><div className="borrower-id">RP-0427-ALPHA <small>ACTIVE WATCH</small></div><div className="gauge-wrap"><div className={`gauge ${risk ? 'gauge-danger' : ''}`}><strong>{risk ? '0.88' : '1.31'}</strong><span>HEALTH FACTOR</span></div><div className="position-values"><div><span>COLLATERAL</span><b>{risk ? '8.20' : '10.00'} SOL</b><small>${risk ? '820.00' : '1,000.00'}</small></div><div><span>BORROWED DEBT</span><b>$900.00</b><small>USDC</small></div><div><span>LIQUIDATION BOUNDARY</span><b>$86.00</b><small>SOL / THRESHOLD</small></div></div></div><div className="card-controls">{risk ? <button className="restore-button" onClick={onRestore}><ShieldCheck size={15} /> Restore Position</button> : <button className="crash-button" onClick={onCrash}><TriangleAlert size={15} /> Simulate Market Crash <small>(−18% SOL)</small></button>}</div></section> }
+function InterventionCard({ phase, seconds, onEnter, onMatch, onExpire }: { phase: Phase; seconds: number; onEnter: () => void; onMatch: () => void; onExpire: () => void }) { const active = phase === 'intervention'; const matched = phase === 'matched' || phase === 'settled'; return <section className="tee-card"><div className="tee-scan" /><div className="card-top"><span className="violet"><span className="pulse violet-pulse" /> MAGICBLOCK EPHEMERAL ROLLUP</span><b>TEE / PER</b></div><h2>Intervention <em>zone.</em></h2><p className="tee-copy">Position delegation creates a confidential execution layer where liquidators compete without exposing bid values.</p><div className="tee-timer"><div className="timer-ring"><strong>{active ? `00:${String(seconds).padStart(2, '0')}` : matched ? 'MATCHED' : '00:60'}</strong><span>{matched ? 'WINNER SELECTED' : 'AUCTION WINDOW'}</span></div><div className="bid-stream"><Bid slot="304892" bidder="7xK9..." num="01" /><Bid slot="304899" bidder="2mP4..." num="02" /><Bid slot="304904" bidder="9qL1..." num="03" /></div></div><div className="reserve-banner"><ShieldCheck size={16} /><span><b>P_reserve CAP: 6.50%</b> Borrower guaranteed to save ≥ 1.50% vs public liquidation.</span></div>{phase === 'risk' ? <button className="violet-button" onClick={onEnter}>Enter TEE Intervention <ArrowRight size={15} /></button> : active ? <div className="tee-buttons"><button className="violet-button" onClick={onMatch}>Match Lowest Bidder <ArrowRight size={15} /></button><button className="ghost-button" onClick={onExpire}>Let Auction Expire</button></div> : <div className="waiting-state"><LockKeyhole size={14} /> {matched ? 'RESCUE WINNER READY FOR L1 SETTLEMENT' : 'AWAITING POSITION DELEGATION'}</div>}</section> }
+function Bid({ slot, bidder, num }: { slot: string; bidder: string; num: string }) { return <div className="bid"><span>[Slot {slot}]</span><b>Liquidator {bidder}</b><small><LockKeyhole size={11} /> Sealed Bid #{num}</small></div> }
+function MevTerminal({ logs, onProbe }: { logs: string[]; onProbe: () => void }) { return <section className="hud-card terminal-card"><div className="card-top"><span><ShieldAlert size={15} /> MEV ATTACK INTERCEPTOR</span><b className="danger">L1 MUTATION LOCKED</b></div><div className="terminal"><div className="terminal-head"><span>ATTACKCONSOLE / RPC STREAM</span><i>● LIVE</i></div><code><span>[22:42:01]</span> Keeper triggered delegation → Position delegated to TEE ER{`\n`}<span>[22:42:03]</span> Jito Searcher 8xA4... detected underwater collateral{`\n`}<span>[22:42:04]</span> Searcher calling liquidate() with 500 SOL priority bribe...{`\n`}<strong>[22:42:05] ❌ TRANSACTION REJECTED by Solana Runtime: Error 3007</strong>{`\n`}<span>[22:42:05]</span> AccountOwnedByWrongProgram: L1 mutation locked by DLP{`\n`}<span>[22:42:06]</span> MEV front-run deflected. Sealed auction running in enclave...{logs.length ? `\n${logs.join('\n')}` : ''}</code></div><button className="probe-button" onClick={onProbe}><Siren size={14} /> Probe MEV Attack <ArrowRight size={14} /></button><p className="terminal-note"><CircleAlert size={13} /> Probe manually to trigger a live Error 3007 rejection.</p></section> }
+function Receipt({ onClose }: { onClose: () => void }) { return <div className="receipt-backdrop" role="dialog" aria-modal="true"><section className="receipt-modal"><button className="close-receipt" onClick={onClose} aria-label="Close receipt"><X size={17} /></button><div className="receipt-icon"><FileCheck2 size={23} /></div><div className="hud-eyebrow cyan">VERIFIABLE RESCUERECORD PDA</div><h2>RP-0427-ALPHA</h2><p>Cryptographic receipt of intervention, matching, and durable settlement.</p><div className="receipt-id"><span>PDA ADDRESS</span><code>7xRscu...PDA0427...Solana</code><button onClick={() => navigator.clipboard?.writeText('7xRscu...PDA0427...Solana')} aria-label="Copy PDA"><Copy size={14} /></button></div><div className="invariants"><div><Check size={14} /><span><b>I₁</b> No public liquidation race permitted before intervention resolves.</span></div><div><Check size={14} /><span><b>I₆</b> L1 mutation rejected with Error 3007 while delegated.</span></div><div><Check size={14} /><span><b>I₁₀</b> Settlement produces durable on-chain RescueRecord PDA.</span></div></div><div className="receipt-actions"><button onClick={() => navigator.clipboard?.writeText('RP-0427-ALPHA')}><Copy size={14} /> Copy Receipt ID</button><a href="https://explorer.solana.com" target="_blank" rel="noreferrer">Open on Solana Explorer <ExternalLink size={13} /></a></div></section></div> }
 
-function AtRiskState({ onRescue }: { onRescue: () => void }) { return <div className="demo-state risk-layout"><section className="crash-panel"><div className="eyebrow danger-eyebrow"><CircleAlert size={15} /> MARKET EVENT DETECTED</div><h3>POSITION AT RISK</h3><div className="crash-values"><div><span>SOL PRICE</span><strong>$100 <i>→</i> $82</strong><small className="danger-text">−18.00%</small></div><div><span>HEALTH FACTOR</span><strong>1.31 <i>→</i> 0.88</strong><small className="danger-text">BELOW THRESHOLD</small></div></div><div className="danger-rule"><span /><b>PUBLIC LIQUIDATION ELIGIBLE</b></div></section><section className="rescue-cta panel"><div className="panel-kicker"><ShieldAlert size={16} /> EMERGENCY RESPONSE</div><h3>Protect this position<br /><em>before it&apos;s public.</em></h3><p>Rescue temporarily blocks public liquidation and creates a 60-second confidential window for competitive intervention.</p><button className="rescue-button" onClick={onRescue}>ENTER INTERVENTION ZONE <ArrowRight size={17} /></button><div className="cta-note"><Clock3 size={14} /> 60 SECONDS · BOND REQUIRED · FAILS OPEN</div></section></div> }
-
-function InterventionZone({ seconds, onMatch, onExpire }: { seconds: number; onMatch: () => void; onExpire: () => void }) { return <div className="demo-state zone-layout"><section className="zone-panel"><div className="zone-header"><div><div className="eyebrow purple-eyebrow"><span className="pulse-dot" /> MAGICBLOCK EPHEMERAL ROLLUP ACTIVE</div><h3>INTERVENTION ZONE</h3><p>Position delegated from Solana. Competitive rescue window is open.</p></div><div className="countdown" role="timer" aria-live="assertive" aria-label={`${seconds} seconds remaining`}><span>TIME REMAINING</span><strong>00:{String(seconds).padStart(2, '0')}</strong><div className="countdown-track"><i style={{ width: `${(seconds / 60) * 100}%` }} /></div></div></div><div className="delegation-strip"><span>BASE SOLANA</span><ArrowRight size={14} /><b>POSITION DELEGATED</b><ArrowRight size={14} /><span>EPHEMERAL ROLLUP</span></div><div className="sealed-grid"><SealStatus icon={<ShieldCheck />} label="PUBLIC LIQUIDATION" value="BLOCKED" accent="green" /><SealStatus icon={<LockKeyhole />} label="BID STATUS" value="SEALED" /><SealStatus icon={<FileCheck2 />} label="LIQUIDATORS" value="3 CONNECTED" /><SealStatus icon={<Copy />} label="COMPETITOR VISIBILITY" value="CANNOT READ" /></div><div className="zone-actions"><button className="match-button" onClick={onMatch}>CLOSE AUCTION &amp; MATCH WINNER <ArrowRight size={16} /></button><button className="subtle-button" onClick={onExpire}>LET AUCTION EXPIRE</button></div><p className="zone-disclaimer"><LockKeyhole size={13} /> No bid values are visible while the auction is open. Winner is selected by the lowest valid penalty.</p></section><aside className="event-stack"><div className="stack-label">PROTOCOL ACTIVITY</div><div className="blocked-event"><div className="event-icon"><ShieldAlert size={18} /></div><div><span>LIQUIDATION ATTEMPT BLOCKED</span><b>Error 3007 — AccountOwnedByWrongProgram</b><small>PUBLIC KEEPER · 00:42 AGO</small></div></div><div className="fallback-mini"><span>FAIL-OPEN PATH</span><p>Auction → winner → runner-up → hard cutoff → public liquidation</p></div></aside></div> }
-
-function MatchedState({ onSettle }: { onSettle: () => void }) { return <div className="demo-state outcome-layout"><section className="matched-panel panel"><div className="eyebrow success-eyebrow"><Check size={15} /> COMPETITIVE RESCUE MATCHED</div><h3>Winner selected.<br /><em>Position protected.</em></h3><div className="winner-row"><div><span>WINNING PENALTY</span><strong>2.50%</strong></div><div><span>WINNER</span><strong>LIQUIDATOR 03</strong></div><div><span>BOND RETURN</span><strong>1.00 SOL</strong></div></div><button className="settle-button" onClick={onSettle}>COMMIT SETTLEMENT TO SOLANA <ArrowRight size={16} /></button></section><aside className="compare-tease"><span>THE DIFFERENCE</span><div><b>8.00%</b><small>PUBLIC</small></div><ChevronRight /><div className="teal-text"><b>2.50%</b><small>RESCUE</small></div></aside></div> }
-
-function SettledState({ onRecord, onReset }: { onRecord: () => void; onReset: () => void }) { return <div className="demo-state settled-layout"><section className="settlement-hero"><div className="eyebrow cyan-eyebrow"><Check size={15} /> SETTLEMENT VERIFIED · RESCUERECORD COMMITTED</div><h3>50% BORROWER<br /><em>SURPLUS SAVED</em></h3><p>The position was rescued at half the cost of public liquidation. The outcome is permanent, portable, and verifiable.</p><div className="settlement-buttons"><button className="record-button" onClick={onRecord}><FileCheck2 size={16} /> VIEW RESCUERECORD</button><button className="subtle-button" onClick={onReset}>RUN ANOTHER INCIDENT</button></div></section><section className="comparison"><div className="comparison-head"><span>SETTLEMENT COMPARISON</span><small>POSITION RP-0427-ALPHA</small></div><div className="comparison-row public"><span>PUBLIC LIQUIDATION</span><strong>8.00%</strong><small>−$996.00</small></div><div className="comparison-row rescue"><span>RESCUE</span><strong>2.50%</strong><small>−$312.00</small></div><div className="saved-row"><span>BORROWER SURPLUS SAVED</span><strong>$684.00</strong></div></section></div> }
-
-function FallbackState({ onReset }: { onReset: () => void }) { return <div className="demo-state fallback-layout"><div className="fallback-alert"><TriangleAlert size={21} /><div><div className="eyebrow danger-eyebrow">HARD CUTOFF REACHED</div><h3>Rescue window expired.</h3><p>No valid winner was matched before the confidential auction closed. The system has failed open to public liquidation.</p></div></div><div className="fallback-path"><div className="path-done">AUCTION <Check /></div><ChevronRight /><div className="path-done">WINNER <Check /></div><ChevronRight /><div className="path-done">RUNNER-UP <Check /></div><ChevronRight /><div className="path-now">HARD CUTOFF <Clock3 /></div><ChevronRight /><div className="path-end">PUBLIC LIQUIDATION</div></div><button className="subtle-button" onClick={onReset}>RESET INCIDENT</button></div> }
-
-function RescueRecord({ onClose }: { onClose: () => void }) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    closeButtonRef.current?.focus()
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
-  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="record-title" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><div className="record-modal"><button ref={closeButtonRef} className="close-button" onClick={onClose} aria-label="Close RescueRecord"><X size={18} /></button><div className="record-seal"><FileCheck2 size={23} /></div><div className="eyebrow cyan-eyebrow">VERIFIABLE RESCUERECORD</div><h3 id="record-title">RP-0427-ALPHA</h3><p className="record-copy">A cryptographic receipt of intervention, matching, and settlement.</p><div className="record-list"><RecordRow label="STATUS" value="SETTLED" green /><RecordRow label="WINNING PENALTY" value="2.50%" /><RecordRow label="PUBLIC ALTERNATIVE" value="8.00%" /><RecordRow label="SURPLUS SAVED" value="50%" green /><RecordRow label="PROGRAM" value="Rescue v1.0" /></div><button className="record-button full-button" onClick={onClose}><Copy size={15} /> COPY RECORD ID</button></div></div> }
-
-function Contrast({ label, items, tone }: { label: string; items: string[]; tone: 'danger' | 'safe' }) { return <div className={`contrast-card ${tone}`}><span>{label}</span>{items.map((item) => <p key={item}><i />{item}</p>)}</div> }
-function ArchitectureStep({ number, title, copy, active }: { number: string; title: string; copy: string; active?: boolean }) { return <div className={`architecture-step ${active ? 'active' : ''}`}><span>{number}</span><strong>{title}</strong><p>{copy}</p></div> }
-function SealStatus({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent?: string }) { return <div className={`seal-status ${accent || ''}`}>{icon}<span>{label}</span><strong>{value}</strong></div> }
-function RecordRow({ label, value, green }: { label: string; value: string; green?: boolean }) { return <div className="record-row"><span>{label}</span><strong className={green ? 'green-text' : ''}>{value}</strong></div> }
-function Metric({ label, value, tone }: { label: string; value: string; tone?: string }) { return <div className="metric"><span>{label}</span><strong className={tone ? `${tone}-text` : ''}>{value}</strong></div> }
+export { PositionCard, InterventionCard, MevTerminal }
