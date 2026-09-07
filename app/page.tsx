@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowRight,
@@ -36,9 +36,13 @@ export default function Page() {
   const [recordOpen, setRecordOpen] = useState(false)
 
   useEffect(() => {
-    if (phase !== 'intervention' || seconds <= 0) return
-    const timer = window.setInterval(() => setSeconds((value) => value - 1), 1000)
-    return () => window.clearInterval(timer)
+    if (phase !== 'intervention') return
+    if (seconds <= 0) {
+      setPhase('fallback')
+      return
+    }
+    const timer = window.setTimeout(() => setSeconds((value) => Math.max(0, value - 1)), 1000)
+    return () => window.clearTimeout(timer)
   }, [phase, seconds])
 
   const activeIndex = useMemo(() => phase === 'fallback' ? 2 : phases.findIndex((item) => item.id === phase), [phase])
@@ -85,7 +89,7 @@ export default function Page() {
       </section>
 
       <section className="simulator-section motion-section" id="simulator">
-        <div className="simulator-intro"><div><div className="section-label">LIVE PROTOCOL DEMO</div><h2>Trigger the emergency.</h2><p>Watch a healthy position move through the exact lifecycle Rescue is built to protect.</p></div><div className="incident-id"><span>INCIDENT</span><strong>RP-0427-ALPHA</strong><small>{phase === 'healthy' ? 'AWAITING TRIGGER' : 'ACTIVE SIMULATION'}</small></div></div>
+        <div className="simulator-intro"><div><div className="section-label">LIVE PROTOCOL DEMO</div><h2>Trigger the emergency.</h2><p>Watch a healthy position move through the exact lifecycle Rescue is built to protect.</p></div><div className="incident-id" role="status" aria-live="polite"><span>INCIDENT</span><strong>RP-0427-ALPHA</strong><small>{phase === 'healthy' ? 'AWAITING TRIGGER' : phase === 'fallback' ? 'FAIL-OPEN COMPLETE' : 'ACTIVE SIMULATION'}</small></div></div>
         <div className="phase-rail" aria-label="Rescue lifecycle">{phases.map((item, index) => <div key={item.id} className={`phase-step ${index < activeIndex ? 'done' : ''} ${item.id === phase ? 'current' : ''}`}><span>{index < activeIndex ? <Check size={13} /> : index + 1}</span><b>{item.label}</b>{index < phases.length - 1 && <i />}</div>)}{phase === 'fallback' && <div className="fallback-rail-label"><TriangleAlert size={13} /> EXPIRED / FAIL-OPEN</div>}</div>
         {phase === 'healthy' && <HealthyState onCrash={beginRisk} />}
         {phase === 'at-risk' && <AtRiskState onRescue={() => { setPhase('intervention'); setSeconds(60) }} />}
@@ -107,7 +111,7 @@ function HealthyState({ onCrash }: { onCrash: () => void }) { return <div classN
 
 function AtRiskState({ onRescue }: { onRescue: () => void }) { return <div className="demo-state risk-layout"><section className="crash-panel"><div className="eyebrow danger-eyebrow"><CircleAlert size={15} /> MARKET EVENT DETECTED</div><h3>POSITION AT RISK</h3><div className="crash-values"><div><span>SOL PRICE</span><strong>$100 <i>→</i> $82</strong><small className="danger-text">−18.00%</small></div><div><span>HEALTH FACTOR</span><strong>1.31 <i>→</i> 0.88</strong><small className="danger-text">BELOW THRESHOLD</small></div></div><div className="danger-rule"><span /><b>PUBLIC LIQUIDATION ELIGIBLE</b></div></section><section className="rescue-cta panel"><div className="panel-kicker"><ShieldAlert size={16} /> EMERGENCY RESPONSE</div><h3>Protect this position<br /><em>before it&apos;s public.</em></h3><p>Rescue temporarily blocks public liquidation and creates a 60-second confidential window for competitive intervention.</p><button className="rescue-button" onClick={onRescue}>ENTER INTERVENTION ZONE <ArrowRight size={17} /></button><div className="cta-note"><Clock3 size={14} /> 60 SECONDS · BOND REQUIRED · FAILS OPEN</div></section></div> }
 
-function InterventionZone({ seconds, onMatch, onExpire }: { seconds: number; onMatch: () => void; onExpire: () => void }) { return <div className="demo-state zone-layout"><section className="zone-panel"><div className="zone-header"><div><div className="eyebrow purple-eyebrow"><span className="pulse-dot" /> MAGICBLOCK EPHEMERAL ROLLUP ACTIVE</div><h3>INTERVENTION ZONE</h3><p>Position delegated from Solana. Competitive rescue window is open.</p></div><div className="countdown"><span>TIME REMAINING</span><strong>00:{String(seconds).padStart(2, '0')}</strong><div className="countdown-track"><i style={{ width: `${(seconds / 60) * 100}%` }} /></div></div></div><div className="delegation-strip"><span>BASE SOLANA</span><ArrowRight size={14} /><b>POSITION DELEGATED</b><ArrowRight size={14} /><span>EPHEMERAL ROLLUP</span></div><div className="sealed-grid"><SealStatus icon={<ShieldCheck />} label="PUBLIC LIQUIDATION" value="BLOCKED" accent="green" /><SealStatus icon={<LockKeyhole />} label="BID STATUS" value="SEALED" /><SealStatus icon={<FileCheck2 />} label="LIQUIDATORS" value="3 CONNECTED" /><SealStatus icon={<Copy />} label="COMPETITOR VISIBILITY" value="CANNOT READ" /></div><div className="zone-actions"><button className="match-button" onClick={onMatch}>CLOSE AUCTION &amp; MATCH WINNER <ArrowRight size={16} /></button><button className="subtle-button" onClick={onExpire}>LET AUCTION EXPIRE</button></div><p className="zone-disclaimer"><LockKeyhole size={13} /> No bid values are visible while the auction is open. Winner is selected by the lowest valid penalty.</p></section><aside className="event-stack"><div className="stack-label">PROTOCOL ACTIVITY</div><div className="blocked-event"><div className="event-icon"><ShieldAlert size={18} /></div><div><span>LIQUIDATION ATTEMPT BLOCKED</span><b>Error 3007 — AccountOwnedByWrongProgram</b><small>PUBLIC KEEPER · 00:42 AGO</small></div></div><div className="fallback-mini"><span>FAIL-OPEN PATH</span><p>Auction → winner → runner-up → hard cutoff → public liquidation</p></div></aside></div> }
+function InterventionZone({ seconds, onMatch, onExpire }: { seconds: number; onMatch: () => void; onExpire: () => void }) { return <div className="demo-state zone-layout"><section className="zone-panel"><div className="zone-header"><div><div className="eyebrow purple-eyebrow"><span className="pulse-dot" /> MAGICBLOCK EPHEMERAL ROLLUP ACTIVE</div><h3>INTERVENTION ZONE</h3><p>Position delegated from Solana. Competitive rescue window is open.</p></div><div className="countdown" role="timer" aria-live="assertive" aria-label={`${seconds} seconds remaining`}><span>TIME REMAINING</span><strong>00:{String(seconds).padStart(2, '0')}</strong><div className="countdown-track"><i style={{ width: `${(seconds / 60) * 100}%` }} /></div></div></div><div className="delegation-strip"><span>BASE SOLANA</span><ArrowRight size={14} /><b>POSITION DELEGATED</b><ArrowRight size={14} /><span>EPHEMERAL ROLLUP</span></div><div className="sealed-grid"><SealStatus icon={<ShieldCheck />} label="PUBLIC LIQUIDATION" value="BLOCKED" accent="green" /><SealStatus icon={<LockKeyhole />} label="BID STATUS" value="SEALED" /><SealStatus icon={<FileCheck2 />} label="LIQUIDATORS" value="3 CONNECTED" /><SealStatus icon={<Copy />} label="COMPETITOR VISIBILITY" value="CANNOT READ" /></div><div className="zone-actions"><button className="match-button" onClick={onMatch}>CLOSE AUCTION &amp; MATCH WINNER <ArrowRight size={16} /></button><button className="subtle-button" onClick={onExpire}>LET AUCTION EXPIRE</button></div><p className="zone-disclaimer"><LockKeyhole size={13} /> No bid values are visible while the auction is open. Winner is selected by the lowest valid penalty.</p></section><aside className="event-stack"><div className="stack-label">PROTOCOL ACTIVITY</div><div className="blocked-event"><div className="event-icon"><ShieldAlert size={18} /></div><div><span>LIQUIDATION ATTEMPT BLOCKED</span><b>Error 3007 — AccountOwnedByWrongProgram</b><small>PUBLIC KEEPER · 00:42 AGO</small></div></div><div className="fallback-mini"><span>FAIL-OPEN PATH</span><p>Auction → winner → runner-up → hard cutoff → public liquidation</p></div></aside></div> }
 
 function MatchedState({ onSettle }: { onSettle: () => void }) { return <div className="demo-state outcome-layout"><section className="matched-panel panel"><div className="eyebrow success-eyebrow"><Check size={15} /> COMPETITIVE RESCUE MATCHED</div><h3>Winner selected.<br /><em>Position protected.</em></h3><div className="winner-row"><div><span>WINNING PENALTY</span><strong>2.50%</strong></div><div><span>WINNER</span><strong>LIQUIDATOR 03</strong></div><div><span>BOND RETURN</span><strong>1.00 SOL</strong></div></div><button className="settle-button" onClick={onSettle}>COMMIT SETTLEMENT TO SOLANA <ArrowRight size={16} /></button></section><aside className="compare-tease"><span>THE DIFFERENCE</span><div><b>8.00%</b><small>PUBLIC</small></div><ChevronRight /><div className="teal-text"><b>2.50%</b><small>RESCUE</small></div></aside></div> }
 
@@ -115,7 +119,19 @@ function SettledState({ onRecord, onReset }: { onRecord: () => void; onReset: ()
 
 function FallbackState({ onReset }: { onReset: () => void }) { return <div className="demo-state fallback-layout"><div className="fallback-alert"><TriangleAlert size={21} /><div><div className="eyebrow danger-eyebrow">HARD CUTOFF REACHED</div><h3>Rescue window expired.</h3><p>No valid winner was matched before the confidential auction closed. The system has failed open to public liquidation.</p></div></div><div className="fallback-path"><div className="path-done">AUCTION <Check /></div><ChevronRight /><div className="path-done">WINNER <Check /></div><ChevronRight /><div className="path-done">RUNNER-UP <Check /></div><ChevronRight /><div className="path-now">HARD CUTOFF <Clock3 /></div><ChevronRight /><div className="path-end">PUBLIC LIQUIDATION</div></div><button className="subtle-button" onClick={onReset}>RESET INCIDENT</button></div> }
 
-function RescueRecord({ onClose }: { onClose: () => void }) { return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="RescueRecord"><div className="record-modal"><button className="close-button" onClick={onClose} aria-label="Close"><X size={18} /></button><div className="record-seal"><FileCheck2 size={23} /></div><div className="eyebrow cyan-eyebrow">VERIFIABLE RESCUERECORD</div><h3>RP-0427-ALPHA</h3><p className="record-copy">A cryptographic receipt of intervention, matching, and settlement.</p><div className="record-list"><RecordRow label="STATUS" value="SETTLED" green /><RecordRow label="WINNING PENALTY" value="2.50%" /><RecordRow label="PUBLIC ALTERNATIVE" value="8.00%" /><RecordRow label="SURPLUS SAVED" value="50%" green /><RecordRow label="PROGRAM" value="Rescue v1.0" /></div><button className="record-button full-button" onClick={onClose}><Copy size={15} /> COPY RECORD ID</button></div></div> }
+function RescueRecord({ onClose }: { onClose: () => void }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    closeButtonRef.current?.focus()
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="record-title" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><div className="record-modal"><button ref={closeButtonRef} className="close-button" onClick={onClose} aria-label="Close RescueRecord"><X size={18} /></button><div className="record-seal"><FileCheck2 size={23} /></div><div className="eyebrow cyan-eyebrow">VERIFIABLE RESCUERECORD</div><h3 id="record-title">RP-0427-ALPHA</h3><p className="record-copy">A cryptographic receipt of intervention, matching, and settlement.</p><div className="record-list"><RecordRow label="STATUS" value="SETTLED" green /><RecordRow label="WINNING PENALTY" value="2.50%" /><RecordRow label="PUBLIC ALTERNATIVE" value="8.00%" /><RecordRow label="SURPLUS SAVED" value="50%" green /><RecordRow label="PROGRAM" value="Rescue v1.0" /></div><button className="record-button full-button" onClick={onClose}><Copy size={15} /> COPY RECORD ID</button></div></div> }
 
 function Contrast({ label, items, tone }: { label: string; items: string[]; tone: 'danger' | 'safe' }) { return <div className={`contrast-card ${tone}`}><span>{label}</span>{items.map((item) => <p key={item}><i />{item}</p>)}</div> }
 function ArchitectureStep({ number, title, copy, active }: { number: string; title: string; copy: string; active?: boolean }) { return <div className={`architecture-step ${active ? 'active' : ''}`}><span>{number}</span><strong>{title}</strong><p>{copy}</p></div> }
