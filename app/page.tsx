@@ -55,7 +55,7 @@ export default function Page() {
         <div className="nav-right"><span className="network-status"><i /> DEVNET</span><a className="nav-cta" href="#simulator">RUN SIMULATION <ArrowRight size={14} /></a></div>
       </header>
 
-      <section className="hero-section" id="top">
+      <section className="hero-section motion-enter" id="top">
         <div className="hero-copy">
           <div className="eyebrow"><span className="status-pip" /> MAGICBLOCK-POWERED EMERGENCY INFRASTRUCTURE</div>
           <h1>Liquidation protection for the moment <em>before</em> liquidation.</h1>
@@ -84,7 +84,7 @@ export default function Page() {
         <div className="architecture"><ArchitectureStep number="01" title="BASE SOLANA" copy="Position crosses its liquidation threshold." /><div className="arch-line"><span>DELEGATE</span><i /></div><ArchitectureStep number="02" title="EPHEMERAL ROLLUP" copy="MagicBlock enables fast, confidential auction state." active /><div className="arch-line"><span>COMMIT</span><i /></div><ArchitectureStep number="03" title="BASE SOLANA" copy="Settlement and RescueRecord become verifiable." /></div>
       </section>
 
-      <section className="simulator-section" id="simulator">
+      <section className="simulator-section motion-section" id="simulator">
         <div className="simulator-intro"><div><div className="section-label">LIVE PROTOCOL DEMO</div><h2>Trigger the emergency.</h2><p>Watch a healthy position move through the exact lifecycle Rescue is built to protect.</p></div><div className="incident-id"><span>INCIDENT</span><strong>RP-0427-ALPHA</strong><small>{phase === 'healthy' ? 'AWAITING TRIGGER' : 'ACTIVE SIMULATION'}</small></div></div>
         <div className="phase-rail" aria-label="Rescue lifecycle">{phases.map((item, index) => <div key={item.id} className={`phase-step ${index < activeIndex ? 'done' : ''} ${item.id === phase ? 'current' : ''}`}><span>{index < activeIndex ? <Check size={13} /> : index + 1}</span><b>{item.label}</b>{index < phases.length - 1 && <i />}</div>)}{phase === 'fallback' && <div className="fallback-rail-label"><TriangleAlert size={13} /> EXPIRED / FAIL-OPEN</div>}</div>
         {phase === 'healthy' && <HealthyState onCrash={beginRisk} />}
