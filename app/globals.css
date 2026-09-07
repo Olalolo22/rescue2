@@ -94,3 +94,22 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .console-home .proof-stat { border-color: #a7d0d3; background: #e6f9fa; }.console-home .proof-stat strong, .console-home .proof-stat span { color: #197b98; }.console-home .proof-stat b { color: #275565; }
 .console-home .proof-links { display: flex; flex-wrap: wrap; gap: 22px; }.console-home .footer-cta { color: #4774e8; display: inline-flex; align-items: center; gap: 7px; }
 @media (max-width: 820px) { .console-home { padding: 0 20px 48px; }.console-home .site-nav { height: auto; padding: 18px 0; flex-wrap: wrap; gap: 16px; }.console-home .nav-links { order: 3; width: 100%; justify-content: space-between; gap: 12px; }.console-home .protocol-strip { display: none; }.console-home .hero-section { grid-template-columns: 1fr; gap: 44px; padding: 72px 0 76px; }.console-home .hero-visual { box-shadow: 8px 8px 0 rgba(157,173,191,.18); }.console-home .mechanism-section, .console-home .proof-section { padding: 76px 0; }.console-home .mechanism-heading, .console-home .proof-section { grid-template-columns: 1fr; gap: 28px; }.console-home .architecture { grid-template-columns: 1fr; gap: 10px; margin-top: 38px; }.console-home .flow-arrow { display: none; }.console-home .proof-stat strong { font-size: 72px; }.console-home .site-footer { align-items: flex-start; flex-wrap: wrap; gap: 16px; } }
+
+/* Keep the live preview readable: every element owns its row instead of competing for the footer. */
+.console-home .hero-visual { min-height: 520px; display: flex; flex-direction: column; gap: 0; }
+.console-home .hero-visual:after { display: none; }
+.console-home .hero-visual .visual-amount { margin-top: 72px; }
+.console-home .hero-visual .visual-label { margin-top: 8px; }
+.console-home .hero-visual .visual-metrics { margin-top: 72px; }
+.console-home .hero-visual .visual-route { margin-top: 0; padding: 22px 0 0; flex: 0 0 auto; }
+.console-home .hero-visual .visual-route strong { min-width: 0; flex-wrap: wrap; }
+.console-home .hero-visual .visual-cta { position: static; display: flex; align-items: center; gap: 7px; flex: 0 0 auto; margin-top: 24px; padding-top: 18px; border-top: 1px solid #d4dde7; }
+@media (max-width: 820px) {
+  .console-home .hero-visual { min-height: 430px; }
+  .console-home .hero-visual .visual-amount { margin-top: 64px; }
+  .console-home .hero-visual .visual-metrics { margin-top: 52px; }
+}
+@media (max-width: 480px) {
+  .console-home .hero-visual { min-height: 410px; }
+  .console-home .hero-visual .visual-metrics { margin-top: 42px; }
+}
