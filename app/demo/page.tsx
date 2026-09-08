@@ -16,6 +16,7 @@ import {
 } from '@/lib/protocol/engine'
 import { PositionTelemetry, SealedBid } from '@/lib/protocol/types'
 import { WalletButton } from '@/components/WalletButton'
+import { useSolanaWallet } from '@/lib/wallet/WalletContext'
 
 type Phase = 'healthy' | 'risk' | 'intervention' | 'matched' | 'settled' | 'expired'
 const phases: { id: Phase; label: string }[] = [
@@ -24,6 +25,7 @@ const phases: { id: Phase; label: string }[] = [
 ]
 
 export default function Page() {
+  const { publicKey, connected } = useSolanaWallet()
   const [phase, setPhase] = useState<Phase>('healthy')
   const [seconds, setSeconds] = useState(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
   const [mevLog, setMevLog] = useState<string[]>([])
@@ -120,7 +122,7 @@ export default function Page() {
     </section>
 
     <section className="cockpit-grid">
-      <PositionCard telemetry={telemetry} phase={phase} onCrash={crash} onRestore={reset} />
+      <PositionCard telemetry={telemetry} phase={phase} onCrash={crash} onRestore={reset} borrowerKey={publicKey} connected={connected} />
       <InterventionCard 
         bids={bids}
         phase={phase} 
@@ -177,15 +179,19 @@ function Telemetry({ label, value, good }: { label: string; value: string; good?
   return <div className="telemetry-item"><span><i className={good ? 'good' : ''} />{label}</span><b>{value}</b></div> 
 }
 
-function PositionCard({ telemetry, phase, onCrash, onRestore }: { telemetry: PositionTelemetry; phase: Phase; onCrash: () => void; onRestore: () => void }) { 
+function PositionCard({ telemetry, phase, onCrash, onRestore, borrowerKey, connected }: { telemetry: PositionTelemetry; phase: Phase; onCrash: () => void; onRestore: () => void; borrowerKey?: string | null; connected?: boolean }) { 
   const risk = phase !== 'healthy'; 
+  const displayKey = borrowerKey ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}` : '7xK4...9e2';
   return (
     <section className={`hud-card position-card ${risk ? 'danger-card' : ''}`}>
       <div className="card-top">
         <span><ShieldCheck size={15} /> MONITORED BORROWER POSITION</span>
         <b className={risk ? 'danger' : 'good'}>{risk ? 'AT RISK' : 'HEALTHY'}</b>
       </div>
-      <div className="borrower-id">{PROTOCOL_CONSTANTS.INCIDENT_ID} <small>ACTIVE WATCH</small></div>
+      <div className="borrower-id" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>BORROWER: <b style={{ color: '#e3e7ed' }}>{displayKey}</b></span>
+        <small style={{ color: connected ? 'var(--green)' : '#8fa89e' }}>{connected ? '● LIVE WALLET' : 'PILOT WATCH'}</small>
+      </div>
       <div className="gauge-wrap">
         <div className={`gauge ${risk ? 'gauge-danger' : ''}`}>
           <strong>{telemetry.healthFactor.toFixed(2)}</strong>

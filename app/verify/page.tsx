@@ -1,5 +1,6 @@
 import { Check, ExternalLink, FileCheck2, GitBranch, ShieldCheck } from 'lucide-react'
 import { PROTOCOL_CONSTANTS } from '@/lib/protocol/constants'
+import { Navbar } from '@/components/Navbar'
 
 const checks = [
   ['I₁', 'No public liquidation before intervention resolves (Guaranteed Exclusivity)'],
@@ -10,7 +11,7 @@ const checks = [
 export default function Verify() { 
   return (
     <main className="site-shell console-page">
-      <Header />
+      <Navbar />
       <div className="page-heading">
         <span className="section-label">JUDGE / REVIEWER VERIFICATION</span>
         <h1>Verify the claim.</h1>
@@ -56,23 +57,5 @@ export default function Verify() {
         <span>See the <a href="/proof/rescue-record-rp-0427">receipt inspector</a> for the concrete settlement proof.</span>
       </div>
     </main> 
-  )
-}
-
-function Header() { 
-  return (
-    <header className="site-nav">
-      <a className="brand" href="/">
-        <span className="brand-mark"><ShieldCheck size={15} /></span>
-        <span>RESCUE <b>PROTOCOL</b></span>
-      </a>
-      <nav className="nav-links">
-        <a href="/demo">DEMO</a>
-        <a href="/activity">ACTIVITY</a>
-        <a href="/proof/rescue-record-rp-0427">PROOF</a>
-        <a href="/verify">VERIFY</a>
-      </nav>
-      <span className="network-status"><i /> DEVNET</span>
-    </header> 
   )
 }

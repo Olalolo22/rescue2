@@ -1,5 +1,6 @@
 import { Check, CircleAlert, LockKeyhole, Radio, ShieldCheck } from 'lucide-react'
 import { PROTOCOL_CONSTANTS } from '@/lib/protocol/constants'
+import { Navbar } from '@/components/Navbar'
 
 const events = [
   ['09:42:18.004', 'DELEGATION_COMMITTED', `Position ${PROTOCOL_CONSTANTS.INCIDENT_ID} transferred to MagicBlock TEE ER`, 'confirmed'],
@@ -12,7 +13,7 @@ const events = [
 export default function Activity() { 
   return (
     <main className="site-shell console-page">
-      <Header />
+      <Navbar />
       <div className="page-heading">
         <span className="section-label">LIVE PROTOCOL ACTIVITY</span>
         <h1>Evidence, not theater.</h1>
@@ -44,23 +45,5 @@ export default function Activity() {
         <span>Activity is a presentation of the Rescue protocol lifecycle. Verify the anchored receipt independently on the <a href="/verify">verification surface</a>.</span>
       </div>
     </main> 
-  )
-}
-
-function Header() { 
-  return (
-    <header className="site-nav">
-      <a className="brand" href="/">
-        <span className="brand-mark"><Radio size={15} /></span>
-        <span>RESCUE <b>PROTOCOL</b></span>
-      </a>
-      <nav className="nav-links">
-        <a href="/demo">DEMO</a>
-        <a href="/activity">ACTIVITY</a>
-        <a href="/proof/rescue-record-rp-0427">PROOF</a>
-        <a href="/verify">VERIFY</a>
-      </nav>
-      <span className="network-status"><i /> DEVNET</span>
-    </header> 
   )
 }

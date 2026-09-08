@@ -1,6 +1,7 @@
 import { Check, Copy, ExternalLink, FileCheck2, ShieldCheck } from 'lucide-react'
 import { PROTOCOL_CONSTANTS } from '@/lib/protocol/constants'
 import { KNOWN_PDAS } from '@/lib/protocol/pda'
+import { Navbar } from '@/components/Navbar'
 
 export default async function Proof({ params }: { params: Promise<{ hash: string }> }) { 
   const { hash } = await params
@@ -8,7 +9,7 @@ export default async function Proof({ params }: { params: Promise<{ hash: string
 
   return (
     <main className="site-shell console-page">
-      <Header />
+      <Navbar />
       <div className="page-heading">
         <span className="section-label">RESCUERECORD / RECEIPT INSPECTOR</span>
         <h1>Settlement, anchored.</h1>
@@ -55,20 +56,3 @@ function Row({ label, value, green }: { label: string; value: string; green?: bo
   )
 }
 
-function Header() { 
-  return (
-    <header className="site-nav">
-      <a className="brand" href="/">
-        <span className="brand-mark"><ShieldCheck size={15} /></span>
-        <span>RESCUE <b>PROTOCOL</b></span>
-      </a>
-      <nav className="nav-links">
-        <a href="/demo">DEMO</a>
-        <a href="/activity">ACTIVITY</a>
-        <a href="/verify">VERIFY</a>
-        <a href="/proof/rescue-record-rp-0427">PROOF</a>
-      </nav>
-      <span className="network-status"><i /> DEVNET</span>
-    </header> 
-  )
-}

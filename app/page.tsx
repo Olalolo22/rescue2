@@ -2,10 +2,9 @@
 
 import { useEffect, useRef } from 'react'
 import { ArrowDown, ArrowRight, Check, ExternalLink, LockKeyhole, Radio, ShieldCheck, Siren } from 'lucide-react'
+import { Navbar } from '@/components/Navbar'
 
 const links = [['/demo', 'RUN DEMO'], ['/activity', 'ACTIVITY'], ['/proof/rescue-record-rp-0427', 'PROOF'], ['/verify', 'VERIFY']]
-
-
 
 export default function Home() {
   const pageRef = useRef<HTMLElement>(null)
@@ -26,7 +25,7 @@ export default function Home() {
   }, [])
 
   return <main ref={pageRef} className="site-shell console-home">
-    <header className="site-nav"><a className="brand" href="/"><span className="brand-mark"><Siren size={15} /></span><span>RESCUE <b>PROTOCOL</b></span></a><nav className="nav-links" aria-label="Protocol navigation">{links.map(([href, label]) => <a href={href} key={href}>{label}</a>)}</nav><span className="network-status"><i /> DEVNET</span></header>
+    <Navbar />
     <div className="protocol-strip" aria-label="Rescue lifecycle"><span><i className="telemetry-dot" /> LIVE PROTOCOL</span><span>DISTRESSED POSITION <ArrowRight size={11} /> PRIVATE INTERVENTION <ArrowRight size={11} /> COMPETITIVE RESCUE <ArrowRight size={11} /> SETTLEMENT</span><span className="strip-right"><b>MAGICBLOCK</b> / EPHEMERAL EXECUTION</span></div>
 
     <section className="hero-section motion-enter">
