@@ -2,19 +2,7 @@ import { ArrowDown, ArrowRight, Check, ExternalLink, LockKeyhole, Radio, ShieldC
 
 const links = [['/demo', 'RUN DEMO'], ['/activity', 'ACTIVITY'], ['/proof/rescue-record-rp-0427', 'PROOF'], ['/verify', 'VERIFY']]
 
-const flow = [
-  ['01', 'DETECT', 'A position becomes distressed on Solana.'],
-  ['02', 'DELEGATE', 'MagicBlock moves the rescue into a temporary Ephemeral Rollup.'],
-  ['03', 'COMPETE', 'Rescuers reprice privately; foreign bids stay unreadable.'],
-  ['04', 'COMMIT', 'The winning path settles back to Solana with a RescueRecord.'],
-]
 
-const magicBlockPrimitives = [
-  ['PRIVATE STATE', 'Ephemeral Rollup', 'Sensitive rescue terms leave the public liquidation race without leaving the Solana settlement path.'],
-  ['PERMISSIONED READS', 'TEE isolation', 'Each rescuer can update its own route, but cannot copy another route\'s committed offer.'],
-  ['FAST EXECUTION', 'High-frequency window', 'The rescue auction can reprice at high frequency while the liquidation clock is still running.'],
-  ['PUBLIC COMMIT', 'Magic Actions', 'Only the selected outcome returns to base Solana as a verifiable RescueRecord.'],
-]
 
 export default function Home() {
   return <main className="site-shell console-home">
@@ -28,7 +16,7 @@ export default function Home() {
 
     <section className="simulator-section landing-simulator"><div className="simulator-intro"><div><span className="section-label">THE PRODUCT, FIRST</span><h2>See the intervention<br /><em>before the explanation.</em></h2></div><p>One bounded lifecycle. No public liquidation race.<br />Run the complete simulation in the Intervention Zone.</p></div><div className="landing-zone"><div><span className="purple-eyebrow"><Radio size={14} /> PRIVATE EXECUTION WINDOW</span><h3>Delegate. Compete. Commit.</h3><p>The protocol moves the sensitive moment off the public surface, then records the result permanently.</p></div><div className="landing-zone-actions"><a className="primary-button" href="/demo">RUN THE RESCUE DEMO <ArrowRight size={15} /></a><span>HEALTHY → AT RISK → MATCHED → SETTLED</span></div></div></section>
 
-    <section className="mechanism-section" id="how-it-works"><div className="mechanism-heading"><div><span className="section-label">THE MAGICBLOCK PRIMITIVE</span><h2>One temporary execution layer.<br /><em>One better outcome.</em></h2></div><p>Rescue is infrastructure presented as a product: delegate the position, run the emergency at high frequency, commit the result. MagicBlock powers the confidential moment without becoming a black box.</p></div><div className="architecture landing-flow">{flow.map(([number, title, copy], index) => <div className={`architecture-step ${index === 1 ? 'active' : ''}`} key={title}><span>{number}</span><strong>{title}</strong><p>{copy}</p>{index < flow.length - 1 && <ArrowRight className="flow-arrow" size={14} />}</div>)}</div><div className="primitive-grid">{magicBlockPrimitives.map(([label, title, copy]) => <article className="primitive-card" key={title}><span>{label}</span><h3>{title}</h3><p>{copy}</p></article>)}</div><a className="primitive-cta" href="/demo"><span><b>ENTER THE EPHEMERAL ROLLUP</b><small>Attempt the cross-rescuer read. Watch the private window settle.</small></span><ArrowRight size={16} /></a></section>
+    <section className="mechanism-section" id="how-it-works"><div className="mechanism-heading"><div><span className="section-label">THE MAGICBLOCK PRIMITIVE</span><h2>One temporary execution layer.<br /><em>One better outcome.</em></h2></div><p>MagicBlock handles the confidential, high-speed middle of a rescue. Solana detects the risk and records the final result.</p></div><div className="rescue-path"><article className="rescue-node"><span>01 / BASE SOLANA</span><strong>Detect</strong><p>A position crosses its liquidation threshold.</p></article><div className="rescue-connector"><ArrowRight size={16} /><span>DELEGATE</span></div><article className="rescue-node magic-node"><span>02 / MAGICBLOCK</span><strong>Protect and compete</strong><p>An Ephemeral Rollup gives rescuers a fast, confidential window to update offers without reading one another&apos;s terms.</p><div className="magic-tags"><i>TEE ISOLATION</i><i>PRIVATE STATE</i><i>HIGH-FREQUENCY</i></div></article><div className="rescue-connector"><ArrowRight size={16} /><span>COMMIT</span></div><article className="rescue-node"><span>03 / BASE SOLANA</span><strong>Settle</strong><p>Only the winning path returns on-chain as a verifiable RescueRecord.</p></article></div><a className="primitive-cta" href="/demo"><span><b>SEE THE PROTECTED WINDOW</b><small>Run the rescue and test the private boundary.</small></span><ArrowRight size={16} /></a></section>
 
     <section className="thesis-section"><div className="thesis-grid"><div><span className="section-label">THE PROBLEM</span><h2>Public liquidation destroys borrower equity.</h2></div><div><p>Keepers race against the same visible state. The fastest transaction wins—not necessarily the best recovery.</p><p>Rescue inserts a constrained, confidential window where eligible actors compete on the borrower&apos;s behalf.</p></div></div><div className="contrast-row"><article className="contrast-card danger"><span>WITHOUT RESCUE</span><p><i /> PUBLIC RACE / VALUE EXTRACTED</p></article><div className="contrast-arrow"><ArrowRight /></div><article className="contrast-card safe"><span>WITH RESCUE</span><p><i /> PRIVATE COMPETITION / VALUE RETURNED</p></article></div></section>
 
