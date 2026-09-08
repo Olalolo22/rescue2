@@ -23,6 +23,7 @@ import {
   Zap,
 } from 'lucide-react'
 
+import { WalletButton } from '@/components/WalletButton'
 import { PROTOCOL_CONSTANTS } from '@/lib/protocol/constants'
 import { KNOWN_PDAS } from '@/lib/protocol/pda'
 import { 
@@ -144,9 +145,7 @@ export default function Page() {
           <span className="network-status" title={`Program: ${PROTOCOL_CONSTANTS.PROGRAM_ID}`}>
             <i /> DEVNET
           </span>
-          <a className="nav-cta" href="#simulator">
-            RUN SIMULATION <ArrowRight size={14} />
-          </a>
+          <WalletButton />
         </div>
       </header>
 
