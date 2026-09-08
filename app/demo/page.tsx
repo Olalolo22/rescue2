@@ -25,7 +25,7 @@ const phases: { id: Phase; label: string }[] = [
 ]
 
 export default function Page() {
-  const { publicKey, connected } = useSolanaWallet()
+  const { publicKey, connected, balanceSol } = useSolanaWallet()
   const [phase, setPhase] = useState<Phase>('healthy')
   const [seconds, setSeconds] = useState(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
   const [mevLog, setMevLog] = useState<string[]>([])
@@ -91,7 +91,8 @@ export default function Page() {
       <div>
         <div className="hud-eyebrow"><span className="pulse" /> INSTITUTIONAL RESCUE CONSOLE / DEVNET</div>
         <h1>Defense against the <em>liquidation race.</em></h1>
-        <p>Monitor a borrower position, trigger the incident, and watch a sealed MagicBlock intervention commit a better outcome to Solana.</p>
+        <p>Monitor a demo position, trigger the incident, and watch a sealed MagicBlock intervention commit a better outcome to Solana.</p>
+        <div className="truth-strip"><span className={connected ? 'live' : ''}>{connected ? 'WALLET: LIVE' : 'WALLET: DISCONNECTED'}</span><span>POSITION: SIMULATED</span><span>TEE: SIMULATED</span><span>SETTLEMENT: SIMULATED</span>{connected && balanceSol !== null && <b>{balanceSol.toFixed(2)} SOL DEVNET</b>}</div>
       </div>
       <div className="program-badge">
         <span>DEVNET PROGRAM</span>
@@ -131,7 +132,7 @@ export default function Page() {
           setPhase('intervention')
           setSeconds(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
         }} 
-        onMatch={() => setPhase('matched')} 
+        onMatch={() => { setPhase('matched'); window.setTimeout(() => setPhase('settled'), 1400) }} 
         onExpire={() => setPhase('expired')} 
       />
       <MevTerminal logs={mevLog} onProbe={probe} />
@@ -189,7 +190,7 @@ function PositionCard({ telemetry, phase, onCrash, onRestore, borrowerKey, conne
         <b className={risk ? 'danger' : 'good'}>{risk ? 'AT RISK' : 'HEALTHY'}</b>
       </div>
       <div className="borrower-id" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>BORROWER: <b style={{ color: '#e3e7ed' }}>{displayKey}</b></span>
+        <span>BORROWER: <b style={{ color: '#e3e7ed' }}>{displayKey}</b><small className="demo-label">DEMO POSITION / SIMULATED PROTOCOL STATE</small></span>
         <small style={{ color: connected ? 'var(--green)' : '#8fa89e' }}>{connected ? '● LIVE WALLET' : 'PILOT WATCH'}</small>
       </div>
       <div className="gauge-wrap">
