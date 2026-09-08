@@ -17,7 +17,7 @@ export default function Verify() {
         <h1>Verify the claim.</h1>
         <p>Rescue is built to be checked in minutes: inspect the program, follow the lifecycle, and compare the anchored receipt.</p>
       </div>
-      <section className="verify-grid">
+      <div className="truth-strip verify-truth"><span className="live">PROGRAM: DEVNET</span><span>WALLET: LIVE WHEN CONNECTED</span><span>POSITION: SIMULATED</span><span>TEE / SETTLEMENT: SIMULATED</span></div><section className="verify-grid">
         <div className="verify-card">
           <span className="section-label">DEVNET PROGRAM ID</span>
           <code>{PROTOCOL_CONSTANTS.PROGRAM_ID}</code>

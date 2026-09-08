@@ -18,7 +18,7 @@ export default async function Proof({ params }: { params: Promise<{ hash: string
       <section className="receipt-grid">
         <div className="receipt-primary">
           <div className="receipt-seal"><FileCheck2 /></div>
-          <span className="eyebrow cyan-eyebrow"><Check /> SETTLEMENT VERIFIED</span>
+          <span className="eyebrow cyan-eyebrow"><Check /> DEVNET PROOF / SIMULATED SETTLEMENT</span>
           <h2>{hash || PROTOCOL_CONSTANTS.INCIDENT_ID}</h2>
           <p>Rescue intervention committed from MagicBlock ephemeral execution back to Solana L1.</p>
           <a 

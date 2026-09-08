@@ -17,7 +17,7 @@ export default function Activity() {
       <div className="page-heading">
         <span className="section-label">LIVE PROTOCOL ACTIVITY</span>
         <h1>Evidence, not theater.</h1>
-        <p>Every transition in the intervention lifecycle resolves into a state a judge can inspect.</p>
+        <p>Every transition in the intervention lifecycle resolves into a state a judge can inspect. The stream is a protocol trace, not a claim that every settlement field is live on-chain.</p>
       </div>
       <section className="activity-shell">
         <div className="activity-head">

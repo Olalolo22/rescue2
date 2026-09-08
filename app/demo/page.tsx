@@ -83,7 +83,7 @@ export default function Page() {
           <a href="/proof/rescue-record-rp-0427" style={{ textDecoration: 'none' }}>Proof Inspector</a>
         </div>
         <WalletButton />
-        <button className="incident-button" onClick={crash}><Siren size={14} /> Simulate Incident</button>
+        <button className="incident-button" onClick={crash}><Siren size={14} /> {phase === 'healthy' ? 'Simulate Market Drop −18%' : 'Market Drop Simulated'}</button>
       </div>
     </header>
 
@@ -255,7 +255,7 @@ function InterventionCard({ bids, phase, seconds, onEnter, onMatch, onExpire }: 
         <span><b>P_reserve CAP: 6.50%</b> Borrower guaranteed to save ≥ 1.50% vs public liquidation.</span>
       </div>
       {phase === 'risk' ? (
-        <button className="violet-button" onClick={onEnter}>Enter TEE Intervention <ArrowRight size={15} /></button>
+        <button className="violet-button" onClick={onEnter}>Delegate to MagicBlock <ArrowRight size={15} /></button>
       ) : active ? (
         <div className="tee-buttons">
           <button className="violet-button" onClick={onMatch}>Match Lowest Bidder <ArrowRight size={15} /></button>
