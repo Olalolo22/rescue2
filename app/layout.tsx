@@ -2,6 +2,8 @@ import { Analytics } from '@vercel/analytics/next'
 import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from 'next/font/google'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { SolanaWalletProviderComponent } from '@/lib/wallet/WalletContext'
+import { WalletModal } from '@/components/WalletModal'
 
 const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
@@ -35,7 +37,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`bg-background ${instrumentSans.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable}`}>
       <body className="antialiased">
-        {children}
+        <SolanaWalletProviderComponent>
+          {children}
+          <WalletModal />
+        </SolanaWalletProviderComponent>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

@@ -15,6 +15,7 @@ import {
   generateMevAttackProbeLogs 
 } from '@/lib/protocol/engine'
 import { PositionTelemetry, SealedBid } from '@/lib/protocol/types'
+import { WalletButton } from '@/components/WalletButton'
 
 type Phase = 'healthy' | 'risk' | 'intervention' | 'matched' | 'settled' | 'expired'
 const phases: { id: Phase; label: string }[] = [
@@ -79,6 +80,7 @@ export default function Page() {
           <a href="/verify" style={{ textDecoration: 'none' }}>Invariant Checks</a>
           <a href="/proof/rescue-record-rp-0427" style={{ textDecoration: 'none' }}>Proof Inspector</a>
         </div>
+        <WalletButton />
         <button className="incident-button" onClick={crash}><Siren size={14} /> Simulate Incident</button>
       </div>
     </header>
