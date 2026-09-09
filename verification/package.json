@@ -1,0 +1,31 @@
+{
+  "name": "rescue-verification",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Milestone 0 Verification Suite for Rescue Protocol",
+  "scripts": {
+    "probe:01": "tsx scripts/probe-01-ephemeral-permission.ts",
+    "probe:02": "tsx scripts/probe-02-ownership-return.ts",
+    "probe:03": "tsx scripts/probe-03-delegated-mutation.ts",
+    "probe:04": "tsx scripts/probe-04-pyth-er-readable.ts",
+    "probe:05": "tsx scripts/probe-05-delegation-latency.ts",
+    "probe:06": "tsx scripts/probe-06-liquidate-on-delegated.ts",
+    "probe:07": "tsx scripts/probe-07-close-ephemeral.ts",
+    "probe:all": "tsx scripts/run-all.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@magicblock-labs/ephemeral-rollups-sdk": "^0.16.2",
+    "@pythnetwork/price-service-client": "^1.11.0",
+    "@pythnetwork/pyth-solana-receiver": "^0.16.0",
+    "@solana/web3.js": "^1.95.3",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5",
+    "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.22.0",
+    "typescript": "^5.8.3"
+  }
+}

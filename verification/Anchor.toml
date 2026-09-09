@@ -1,0 +1,19 @@
+[toolchain]
+anchor_version = "1.0.2"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.devnet]
+probe = "ZnDqdjHjR1HuwyMehcfEGrxCt6QiCz58UW21VjbnGjf"
+
+[programs.localnet]
+probe = "ZnDqdjHjR1HuwyMehcfEGrxCt6QiCz58UW21VjbnGjf"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn tsx scripts/run-all.ts"
