@@ -11,6 +11,8 @@ import {
   Copy,
   ExternalLink,
   FileCheck2,
+  HelpCircle,
+  Info,
   LockKeyhole,
   Radio,
   RefreshCw,
@@ -19,6 +21,7 @@ import {
   Siren,
   Terminal,
   TriangleAlert,
+  Wallet,
   X,
   Zap,
 } from 'lucide-react'
@@ -57,10 +60,14 @@ const phases: { id: Phase; label: string }[] = [
 ]
 
 export default function Page() {
-  const { publicKey, connected } = useSolanaWallet()
+  const { publicKey, connected, balanceSol, openModal } = useSolanaWallet()
   const [phase, setPhase] = useState<Phase>('healthy')
   const [seconds, setSeconds] = useState(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
   const [recordOpen, setRecordOpen] = useState(false)
+
+  // Profile configuration: Connect Real Wallet vs Anchor Benchmark Spec
+  const [positionProfile, setPositionProfile] = useState<'wallet' | 'benchmark'>('benchmark')
+  const [showPresenterScript, setShowPresenterScript] = useState(false)
 
   // Backend connection and engine state
   const [engineMode, setEngineMode] = useState<'live' | 'demo'>('live')
@@ -77,6 +84,40 @@ export default function Page() {
   const [mevLogs, setMevLogs] = useState<MevInterceptLog[]>(INITIAL_MEV_LOGS)
   const [isProbingMev, setIsProbingMev] = useState(false)
   const [copiedPda, setCopiedPda] = useState(false)
+
+  // Auto-switch profile when wallet connects
+  useEffect(() => {
+    if (connected && publicKey) {
+      setPositionProfile('wallet')
+      setTelemetry((prev) => ({
+        ...prev,
+        collateralSol: 1.00,
+        debtUsd: 80.00,
+        collateralUsd: 1.00 * prev.solPriceUsd,
+        liquidationThresholdUsd: 84.00,
+        healthFactor: 1.25,
+      }))
+    }
+  }, [connected, publicKey])
+
+  // Profile switch handler
+  const handleSelectProfile = (profile: 'wallet' | 'benchmark') => {
+    setPositionProfile(profile)
+    setPhase('healthy')
+    setSeconds(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
+    const isWallet = profile === 'wallet'
+    const solAmount = isWallet ? 1.00 : PROTOCOL_CONSTANTS.COLLATERAL_SOL
+    const debtAmount = isWallet ? 80.00 : PROTOCOL_CONSTANTS.DEBT_USDC
+    setTelemetry({
+      ...INITIAL_TELEMETRY,
+      collateralSol: solAmount,
+      debtUsd: debtAmount,
+      collateralUsd: solAmount * PROTOCOL_CONSTANTS.NORMAL_SOL_PRICE,
+      liquidationThresholdUsd: isWallet ? 84.00 : PROTOCOL_CONSTANTS.LIQUIDATION_THRESHOLD,
+      healthFactor: isWallet ? 1.25 : 1.31,
+      state: 'HEALTHY',
+    })
+  }
 
   // Poll live Solana Devnet telemetry via backend API
   useEffect(() => {
@@ -124,7 +165,18 @@ export default function Page() {
     setPhase('healthy')
     setSeconds(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
     setRecordOpen(false)
-    setTelemetry(INITIAL_TELEMETRY)
+    const isWallet = positionProfile === 'wallet' && connected && publicKey
+    const solAmount = isWallet ? 1.00 : PROTOCOL_CONSTANTS.COLLATERAL_SOL
+    const debtAmount = isWallet ? 80.00 : PROTOCOL_CONSTANTS.DEBT_USDC
+    setTelemetry({
+      ...INITIAL_TELEMETRY,
+      collateralSol: solAmount,
+      debtUsd: debtAmount,
+      collateralUsd: solAmount * PROTOCOL_CONSTANTS.NORMAL_SOL_PRICE,
+      liquidationThresholdUsd: isWallet ? 84.00 : PROTOCOL_CONSTANTS.LIQUIDATION_THRESHOLD,
+      healthFactor: isWallet ? 1.25 : 1.31,
+      state: 'HEALTHY',
+    })
     setMevLogs(INITIAL_MEV_LOGS)
     setIsProbingMev(false)
     setIsRunningE2e(false)
@@ -242,6 +294,14 @@ export default function Page() {
     setIsVerifying(false)
   }
 
+  // Active borrower label & incident ID
+  const activeBorrower = positionProfile === 'wallet' && publicKey
+    ? publicKey
+    : PROTOCOL_CONSTANTS.BORROWER_PUBKEY
+  const activeIncident = positionProfile === 'wallet' && publicKey
+    ? `PILOT-${publicKey.slice(0, 4).toUpperCase()}`
+    : PROTOCOL_CONSTANTS.INCIDENT_ID
+
   return (
     <main className="site-shell">
       {/* ─── NAVIGATION ─── */}
@@ -272,7 +332,26 @@ export default function Page() {
         <span>LATENCY: <b>{networkLatency}ms</b></span>
         <span>PYTH SOL/USD: <b>${telemetry.solPriceUsd.toFixed(2)}</b></span>
         <div className="strip-right" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ color: '#8fa89e', fontSize: '9px' }}>ENGINE MODE:</span>
+          <button
+            type="button"
+            onClick={() => setShowPresenterScript((prev) => !prev)}
+            style={{
+              padding: '2px 9px',
+              fontSize: '9px',
+              fontFamily: 'var(--font-data)',
+              borderRadius: '3px',
+              border: showPresenterScript ? '1px solid var(--cyan)' : '1px solid #323b49',
+              background: showPresenterScript ? 'rgba(106, 215, 229, 0.15)' : 'transparent',
+              color: showPresenterScript ? 'var(--cyan)' : '#8fa89e',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <HelpCircle size={10} /> {showPresenterScript ? 'HIDE DEMO GUIDE' : 'PRESENTER DEMO GUIDE'}
+          </button>
+          <span style={{ color: '#8fa89e', fontSize: '9px' }}>ENGINE:</span>
           <button
             type="button"
             onClick={() => setEngineMode('live')}
@@ -308,6 +387,75 @@ export default function Page() {
         </div>
       </div>
 
+      {/* ─── PRESENTER DEMO SCRIPT DRAWER ─── */}
+      {showPresenterScript && (
+        <section
+          style={{
+            margin: '16px 0',
+            padding: '20px 24px',
+            border: '1px solid #384252',
+            background: '#0d1117',
+            borderRadius: '4px',
+            boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
+          }}
+          aria-label="Presenter Pitch Cheatsheet"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e2634', paddingBottom: '10px' }}>
+            <div className="eyebrow" style={{ color: 'var(--cyan)' }}>
+              <Info size={14} /> PRESENTER DEMO CHEATSHEET &amp; REAL VS. SIMULATED MAP
+            </div>
+            <button
+              onClick={() => setShowPresenterScript(false)}
+              style={{ background: 'none', border: 0, color: '#8fa89e', cursor: 'pointer' }}
+              aria-label="Close cheatsheet"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px', marginTop: '16px' }}>
+            <div>
+              <span style={{ font: '10px var(--font-data)', color: 'var(--purple)', letterSpacing: '.1em', display: 'block', marginBottom: '6px' }}>
+                1. THE 30-SECOND HOOK (PROBLEM)
+              </span>
+              <p style={{ color: '#c3cad4', fontSize: '13px', lineHeight: '1.55', margin: 0 }}>
+                &ldquo;On Solana today, when a lending position reaches the danger zone, public MEV searchers immediately snipe it in the mempool. Borrowers lose 8% to 10% in liquidation penalties with zero recourse.&rdquo;
+              </p>
+            </div>
+
+            <div>
+              <span style={{ font: '10px var(--font-data)', color: 'var(--green)', letterSpacing: '.1em', display: 'block', marginBottom: '6px' }}>
+                2. THE SOLUTION (MAGICBLOCK TEE)
+              </span>
+              <p style={{ color: '#c3cad4', fontSize: '13px', lineHeight: '1.55', margin: 0 }}>
+                &ldquo;Rescue catches the position at HF 1.05 and delegates it into a confidential MagicBlock TEE. Outside MEV bots are rejected on L1 with <b>Error 3007</b>. Inside the TEE, liquidators bid down the penalty in a private reverse auction.&rdquo;
+              </p>
+            </div>
+
+            <div>
+              <span style={{ font: '10px var(--font-data)', color: 'var(--cyan)', letterSpacing: '.1em', display: 'block', marginBottom: '6px' }}>
+                3. DEMO CLICK-THROUGH
+              </span>
+              <ul style={{ color: '#9ca5b1', fontSize: '12px', margin: 0, paddingLeft: '16px', lineHeight: '1.6' }}>
+                <li><b>Step 1:</b> Connect Devnet wallet (shows your real SOL balance).</li>
+                <li><b>Step 2:</b> Click <i>Simulate Drop (-18%)</i> [Simulated price shock].</li>
+                <li><b>Step 3:</b> Click <i>Enter TEE Zone</i> [Delegates PDA to TEE].</li>
+                <li><b>Step 4:</b> Click <i>Probe MEV</i> [Shows live L1 Error 3007 defense].</li>
+                <li><b>Step 5:</b> Click <i>Match &amp; Settle</i> [Commits RescueRecord PDA to Solana L1].</li>
+              </ul>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #1c232f', display: 'flex', gap: '20px', flexWrap: 'wrap', font: '10px var(--font-data)' }}>
+            <span style={{ color: 'var(--green)' }}>● REAL: Connected Wallet Balance &amp; Keys</span>
+            <span style={{ color: 'var(--purple)' }}>● REAL: MagicBlock TEE DLP &amp; Error 3007 Lock</span>
+            <span style={{ color: 'var(--cyan)' }}>● REAL: Anchor Smart Contracts &amp; RescueRecord PDA</span>
+            <span style={{ color: '#eb747a' }}>⚡ SIMULATED: -18% Market Crash Trigger (Instant Demo)</span>
+            <span style={{ color: '#b9a5ff' }}>⚡ SIMULATED: Liquidator Bidders (Inside Enclave)</span>
+          </div>
+        </section>
+      )}
+
       {/* ─── HERO SECTION ─── */}
       <section className="hero-section motion-enter" id="top">
         <div className="hero-copy">
@@ -337,12 +485,12 @@ export default function Page() {
 
         <div className="hero-visual" aria-label="Rescue protocol architecture preview">
           <div className="visual-topline">
-            <span>INCIDENT {PROTOCOL_CONSTANTS.INCIDENT_ID}</span>
+            <span>INCIDENT {activeIncident}</span>
             <span className="visual-live"><i /> {telemetry.state}</span>
           </div>
           <div className="visual-amount">
             ${telemetry.collateralUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            <span> {telemetry.collateralSol} SOL collateralized position</span>
+            <span> {telemetry.collateralSol.toFixed(2)} SOL collateralized position</span>
           </div>
           <div className="visual-metrics">
             <Metric label="SOL PRICE" value={`$${telemetry.solPriceUsd.toFixed(2)}`} />
@@ -418,11 +566,55 @@ export default function Page() {
             <div className="section-label">LIVE PROTOCOL COCKPIT</div>
             <h2>Trigger the emergency.</h2>
             <p>Watch a healthy position move through the exact lifecycle Rescue is built to protect.</p>
+
+            {/* Position Profile Selector: Connected Wallet vs Benchmark */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginTop: '12px', padding: '4px', border: '1px solid #28313e', borderRadius: '4px', background: '#0e1218' }}>
+              <span style={{ fontSize: '9px', color: '#7a8696', paddingLeft: '6px', font: '9px var(--font-data)' }}>POSITION SOURCE:</span>
+              <button
+                type="button"
+                onClick={() => handleSelectProfile('wallet')}
+                style={{
+                  padding: '3px 10px',
+                  fontSize: '9px',
+                  fontFamily: 'var(--font-data)',
+                  borderRadius: '3px',
+                  border: positionProfile === 'wallet' ? '1px solid var(--green)' : '1px solid transparent',
+                  background: positionProfile === 'wallet' ? 'rgba(0, 245, 160, 0.12)' : 'transparent',
+                  color: positionProfile === 'wallet' ? 'var(--green)' : '#8fa89e',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <Wallet size={10} />
+                {connected && publicKey
+                  ? `MY WALLET (${publicKey.slice(0, 4)}...${publicKey.slice(-4)})`
+                  : 'CONNECT MY WALLET (1.00 SOL)'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectProfile('benchmark')}
+                style={{
+                  padding: '3px 10px',
+                  fontSize: '9px',
+                  fontFamily: 'var(--font-data)',
+                  borderRadius: '3px',
+                  border: positionProfile === 'benchmark' ? '1px solid var(--purple)' : '1px solid transparent',
+                  background: positionProfile === 'benchmark' ? 'rgba(169, 148, 244, 0.14)' : 'transparent',
+                  color: positionProfile === 'benchmark' ? 'var(--purple)' : '#8fa89e',
+                  cursor: 'pointer',
+                }}
+              >
+                BENCHMARK SPEC (10.00 SOL · RP-0427)
+              </button>
+            </div>
           </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
             <div className="incident-id" role="status" aria-live="polite">
               <span>INCIDENT</span>
-              <strong>{PROTOCOL_CONSTANTS.INCIDENT_ID}</strong>
+              <strong>{activeIncident}</strong>
               <small>{phase === 'healthy' ? 'AWAITING TRIGGER' : phase === 'fallback' ? 'FAIL-OPEN COMPLETE' : 'ACTIVE SIMULATION'}</small>
             </div>
             <button
@@ -461,8 +653,25 @@ export default function Page() {
         </div>
 
         {/* State Views */}
-        {phase === 'healthy' && <HealthyState telemetry={telemetry} onCrash={beginRisk} borrowerKey={publicKey} connected={connected} />}
-        {phase === 'at-risk' && <AtRiskState telemetry={telemetry} onRescue={startIntervention} borrowerKey={publicKey} connected={connected} />}
+        {phase === 'healthy' && (
+          <HealthyState
+            telemetry={telemetry}
+            onCrash={beginRisk}
+            borrowerKey={activeBorrower}
+            connected={connected}
+            balanceSol={balanceSol}
+            positionProfile={positionProfile}
+            onOpenModal={openModal}
+          />
+        )}
+        {phase === 'at-risk' && (
+          <AtRiskState
+            telemetry={telemetry}
+            onRescue={startIntervention}
+            borrowerKey={activeBorrower}
+            connected={connected}
+          />
+        )}
         {phase === 'intervention' && (
           <InterventionZone
             seconds={seconds}
@@ -483,6 +692,7 @@ export default function Page() {
         )}
         {phase === 'matched' && (
           <MatchedState
+            telemetry={telemetry}
             onSettle={() => {
               setPhase('settled')
               setTelemetry((prev) => ({ ...prev, state: 'SETTLED', healthFactor: 1.2 }))
@@ -490,7 +700,12 @@ export default function Page() {
           />
         )}
         {phase === 'settled' && (
-          <SettledState onRecord={() => setRecordOpen(true)} onReset={reset} />
+          <SettledState
+            telemetry={telemetry}
+            activeIncident={activeIncident}
+            onRecord={() => setRecordOpen(true)}
+            onReset={reset}
+          />
         )}
         {phase === 'fallback' && <FallbackState onReset={reset} />}
       </section>
@@ -546,7 +761,7 @@ export default function Page() {
         <div className="proof-stat">
           <span>SURPLUS SAVED</span>
           <strong>+5.50%</strong>
-          <b>+$49.50 BORROWER EQUITY RETAINED</b>
+          <b>+${(telemetry.debtUsd * 0.055).toFixed(2)} BORROWER EQUITY RETAINED</b>
           <small>Standard 8.00% public liquidation ➔ 2.50% winning TEE bid</small>
         </div>
       </section>
@@ -570,6 +785,8 @@ export default function Page() {
       {recordOpen && (
         <RescueRecord
           copied={copiedPda}
+          incidentId={activeIncident}
+          telemetry={telemetry}
           onCopy={() => {
             navigator.clipboard?.writeText(KNOWN_PDAS.RESCUE_RECORD_0427)
             setCopiedPda(true)
@@ -591,34 +808,86 @@ function HealthyState({
   onCrash,
   borrowerKey,
   connected,
+  balanceSol,
+  positionProfile,
+  onOpenModal,
 }: {
   telemetry: PositionTelemetry
   onCrash: () => void
   borrowerKey?: string | null
   connected?: boolean
+  balanceSol?: number | null
+  positionProfile: 'wallet' | 'benchmark'
+  onOpenModal: () => void
 }) {
-  const displayKey = borrowerKey ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}` : '7xK4...9e2'
+  const displayKey = borrowerKey
+    ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}`
+    : '7xK4...9e2'
+
   return (
     <div className="demo-state quiet-layout">
       <section className="position-card panel">
         <div className="panel-kicker">
           <ShieldCheck size={16} /> MONITORED POSITION <span className="safe-tag">HEALTHY</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0 10px', fontSize: '11px', fontFamily: 'var(--font-data)' }}>
-          <span>BORROWER: <b style={{ color: '#e3e7ed' }}>{displayKey}</b></span>
-          <small style={{ color: connected ? 'var(--green)' : '#8fa89e' }}>{connected ? '● DEVNET CONNECTED' : 'PILOT WATCH'}</small>
+
+        {/* Borrower & Real Devnet Balance Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0 12px', borderBottom: '1px solid #1c222c', fontSize: '11px', fontFamily: 'var(--font-data)' }}>
+          <div>
+            <span style={{ color: '#737e8d' }}>BORROWER: </span>
+            <b style={{ color: '#e3e7ed' }}>{displayKey}</b>
+            {connected && positionProfile === 'wallet' && (
+              <span style={{ marginLeft: '6px', color: 'var(--green)', fontSize: '9px', background: 'rgba(0,245,160,0.1)', padding: '2px 5px', borderRadius: '3px' }}>
+                [REAL DEVNET WALLET]
+              </span>
+            )}
+          </div>
+          <div>
+            {connected && balanceSol !== null ? (
+              <span style={{ color: 'var(--green)' }}>
+                DEVNET BALANCE: <b>{balanceSol.toFixed(2)} SOL</b>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenModal}
+                style={{
+                  background: 'none',
+                  border: '1px solid #2d604e',
+                  color: 'var(--green)',
+                  fontSize: '10px',
+                  fontFamily: 'var(--font-data)',
+                  padding: '2px 7px',
+                  cursor: 'pointer',
+                  borderRadius: '3px',
+                }}
+              >
+                + CONNECT WALLET
+              </button>
+            )}
+          </div>
         </div>
+
         <div className="position-value">${telemetry.collateralUsd.toFixed(2)}</div>
-        <div className="position-sub">{telemetry.collateralSol} SOL collateralized debt position</div>
+        <div className="position-sub">
+          {telemetry.collateralSol.toFixed(2)} SOL Collateral &middot; ${telemetry.debtUsd.toFixed(2)} USDC Debt
+        </div>
+
         <div className="metrics-grid">
-          <Metric label="SOL PRICE" value={`$${telemetry.solPriceUsd.toFixed(2)}`} />
+          <Metric label="SOL ORACLE PRICE" value={`$${telemetry.solPriceUsd.toFixed(2)}`} />
           <Metric label="HEALTH FACTOR" value={telemetry.healthFactor.toFixed(2)} tone="green" />
           <Metric label="LIQUIDATION THRESHOLD" value={`$${telemetry.liquidationThresholdUsd.toFixed(2)}`} />
         </div>
-        <button className="primary-button trigger-button" onClick={onCrash}>
-          <Siren size={17} /> SIMULATE MARKET DROP (-18%) <ArrowRight size={16} />
-        </button>
-        <p className="fine-print">Simulates sudden market downturn to trip the position into the AT_RISK zone.</p>
+
+        <div style={{ marginTop: '30px' }}>
+          <button className="primary-button trigger-button" onClick={onCrash} style={{ width: '100%' }}>
+            <Siren size={17} /> TRIGGER SIMULATED MARKET DROP (-18%) <ArrowRight size={16} />
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', fontSize: '10px', fontFamily: 'var(--font-data)', color: '#707b89' }}>
+            <span>⚡ SIMULATED EVENT FOR DEMO</span>
+            <span>CRASHES ORACLE TO $82.00 &rarr; TRIPS HF TO 0.88</span>
+          </div>
+        </div>
       </section>
 
       <aside className="demo-note">
@@ -627,7 +896,7 @@ function HealthyState({
         <p>When collateral crosses the danger line, Rescue buys the borrower a private moment to find a better outcome.</p>
         <div className="principle-line">
           <LockKeyhole size={15} />
-          <span>CONFIDENTIAL BY DEFAULT (TEE)</span>
+          <span>CONFIDENTIAL BY DEFAULT (MAGICBLOCK TEE)</span>
         </div>
         <div className="principle-line">
           <ShieldCheck size={15} />
@@ -649,28 +918,30 @@ function AtRiskState({
   borrowerKey?: string | null
   connected?: boolean
 }) {
+  const displayKey = borrowerKey ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}` : '7xK4...9e2'
+
   return (
     <div className="demo-state risk-layout">
       <section className="crash-panel">
         <div className="eyebrow danger-eyebrow">
-          <CircleAlert size={15} /> MARKET DOWNTURN DETECTED
+          <CircleAlert size={15} /> MARKET DOWNTURN DETECTED &middot; BORROWER: {displayKey}
         </div>
         <h3>POSITION AT RISK</h3>
         <div className="crash-values">
           <div>
-            <span>SOL PRICE</span>
-            <strong>$100.00 <i>→</i> ${telemetry.solPriceUsd.toFixed(2)}</strong>
-            <small className="danger-text">−18.00% CRASH</small>
+            <span>SOL ORACLE PRICE</span>
+            <strong>$100.00 <i>&rarr;</i> ${telemetry.solPriceUsd.toFixed(2)}</strong>
+            <small className="danger-text">&minus;18.00% CRASH TRIGGERED</small>
           </div>
           <div>
             <span>HEALTH FACTOR</span>
-            <strong>1.31 <i>→</i> {telemetry.healthFactor.toFixed(2)}</strong>
-            <small className="danger-text">BELOW 1.05 THRESHOLD</small>
+            <strong>1.25 <i>&rarr;</i> {telemetry.healthFactor.toFixed(2)}</strong>
+            <small className="danger-text">CRITICAL BREACH BELOW 1.05</small>
           </div>
         </div>
         <div className="danger-rule">
           <span />
-          <b>PUBLIC LIQUIDATION THREAT DETECTED ON L1</b>
+          <b>PUBLIC LIQUIDATION THREAT DETECTED ON L1 &middot; MEV SEARCHERS ARMED</b>
         </div>
       </section>
 
@@ -680,13 +951,13 @@ function AtRiskState({
         </div>
         <h3>Protect this position<br /><em>before it&apos;s public.</em></h3>
         <p>
-          Rescue temporarily freezes public liquidation on L1 and creates a 60-second confidential TEE window for competitive intervention.
+          Rescue temporarily locks public liquidation on L1 and creates a 60-second confidential TEE window for competitive liquidator intervention.
         </p>
         <button className="rescue-button" onClick={onRescue}>
-          ENTER INTERVENTION ZONE <ArrowRight size={17} />
+          DELEGATE &amp; ENTER TEE ZONE <ArrowRight size={17} />
         </button>
         <div className="cta-note">
-          <Clock3 size={14} /> 60 SECONDS · BOND REQUIRED · MEV DEFLECTED
+          <Clock3 size={14} /> 60 SECONDS &middot; MAGICBLOCK TEE ENCLAVE &middot; MEV DEFLECTED
         </div>
       </section>
     </div>
@@ -807,14 +1078,22 @@ function InterventionZone({
 
         <div className="fallback-mini">
           <span>FAIL-OPEN GUARANTEE</span>
-          <p>Auction ➔ Winner ➔ Runner-up ➔ Hard Cutoff (60s) ➔ Public Liquidation fallback.</p>
+          <p>Auction &rarr; Winner &rarr; Runner-up &rarr; Hard Cutoff (60s) &rarr; Public Liquidation fallback.</p>
         </div>
       </aside>
     </div>
   )
 }
 
-function MatchedState({ onSettle }: { onSettle: () => void }) {
+function MatchedState({
+  telemetry,
+  onSettle,
+}: {
+  telemetry: PositionTelemetry
+  onSettle: () => void
+}) {
+  const savedUsd = (telemetry.debtUsd * 0.055).toFixed(2)
+
   return (
     <div className="demo-state outcome-layout">
       <section className="matched-panel panel">
@@ -836,7 +1115,7 @@ function MatchedState({ onSettle }: { onSettle: () => void }) {
           </div>
           <div>
             <span>SURPLUS SAVED</span>
-            <strong style={{ color: 'var(--green)' }}>+$49.50 (+5.50%)</strong>
+            <strong style={{ color: 'var(--green)' }}>+${savedUsd} (+5.50%)</strong>
           </div>
         </div>
         <button className="settle-button" onClick={onSettle}>
@@ -860,19 +1139,33 @@ function MatchedState({ onSettle }: { onSettle: () => void }) {
   )
 }
 
-function SettledState({ onRecord, onReset }: { onRecord: () => void; onReset: () => void }) {
+function SettledState({
+  telemetry,
+  activeIncident,
+  onRecord,
+  onReset,
+}: {
+  telemetry: PositionTelemetry
+  activeIncident: string
+  onRecord: () => void
+  onReset: () => void
+}) {
+  const publicFee = (telemetry.debtUsd * 0.08).toFixed(2)
+  const rescueFee = (telemetry.debtUsd * 0.025).toFixed(2)
+  const savedUsd = (telemetry.debtUsd * 0.055).toFixed(2)
+
   return (
     <div className="demo-state settled-layout">
       <section className="settlement-hero">
         <div className="eyebrow cyan-eyebrow">
-          <Check size={15} /> SETTLEMENT VERIFIED · RESCUERECORD COMMITTED
+          <Check size={15} /> SETTLEMENT VERIFIED &middot; RESCUERECORD COMMITTED
         </div>
         <h3>
-          +$49.50 BORROWER<br />
+          +${savedUsd} BORROWER<br />
           <em>EQUITY RETAINED</em>
         </h3>
         <p>
-          The position was rescued at 2.50% penalty instead of the standard 8.00% public liquidation fee. The cryptographic outcome is permanent, portable, and verifiable.
+          The position was rescued at 2.50% penalty instead of the standard 8.00% public liquidation fee. The cryptographic outcome is permanent, portable, and verifiable on Solana L1.
         </p>
         <div className="settlement-buttons">
           <button className="record-button" onClick={onRecord}>
@@ -887,21 +1180,21 @@ function SettledState({ onRecord, onReset }: { onRecord: () => void; onReset: ()
       <section className="comparison">
         <div className="comparison-head">
           <span>SETTLEMENT COMPARISON</span>
-          <small>INCIDENT {PROTOCOL_CONSTANTS.INCIDENT_ID}</small>
+          <small>INCIDENT {activeIncident}</small>
         </div>
         <div className="comparison-row public">
           <span>PUBLIC LIQUIDATION (8.00%)</span>
-          <strong>-$72.00</strong>
+          <strong>-${publicFee}</strong>
           <small>Equity Lost</small>
         </div>
         <div className="comparison-row rescue">
           <span>RESCUE WINNING BID (2.50%)</span>
-          <strong>-$22.50</strong>
+          <strong>-${rescueFee}</strong>
           <small>Fee Incurred</small>
         </div>
         <div className="saved-row">
           <span>BORROWER SURPLUS SAVED</span>
-          <strong>+$49.50 (+5.50%)</strong>
+          <strong>+${savedUsd} (+5.50%)</strong>
         </div>
       </section>
     </div>
@@ -937,8 +1230,21 @@ function FallbackState({ onReset }: { onReset: () => void }) {
   )
 }
 
-function RescueRecord({ copied, onCopy, onClose }: { copied: boolean; onCopy: () => void; onClose: () => void }) {
+function RescueRecord({
+  copied,
+  incidentId,
+  telemetry,
+  onCopy,
+  onClose,
+}: {
+  copied: boolean
+  incidentId: string
+  telemetry: PositionTelemetry
+  onCopy: () => void
+  onClose: () => void
+}) {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const savedUsd = (telemetry.debtUsd * 0.055).toFixed(2)
 
   useEffect(() => {
     closeButtonRef.current?.focus()
@@ -965,7 +1271,7 @@ function RescueRecord({ copied, onCopy, onClose }: { copied: boolean; onCopy: ()
           <FileCheck2 size={23} />
         </div>
         <div className="eyebrow cyan-eyebrow">VERIFIABLE IMMUTABLE PDA</div>
-        <h3 id="record-title">{PROTOCOL_CONSTANTS.INCIDENT_ID}</h3>
+        <h3 id="record-title">{incidentId}</h3>
         <p className="record-copy">
           Cryptographic receipt of intervention, reverse auction matching, and L1 settlement.
         </p>
@@ -975,7 +1281,7 @@ function RescueRecord({ copied, onCopy, onClose }: { copied: boolean; onCopy: ()
           <RecordRow label="L1 SLOT" value="284,719,445" />
           <RecordRow label="WINNING PENALTY" value="2.50% (250 bps)" green />
           <RecordRow label="PUBLIC PENALTY" value="8.00% (800 bps)" />
-          <RecordRow label="SURPLUS SAVED" value="+$49.50 (+5.50%)" green />
+          <RecordRow label="SURPLUS SAVED" value={`+$${savedUsd} (+5.50%)`} green />
           <RecordRow label="INVARIANTS" value="I1 · I6 · I10 VERIFIED" green />
         </div>
         <button className="record-button full-button" onClick={onCopy}>
