@@ -596,29 +596,35 @@ export default function Page() {
         </div>
       </section>
 
-      {/* ─── FOOTER (mbv2) ─── */}
+      {/* ── FOOTER ── */}
       <footer className="site-footer">
         <div className="footer-intro">
           <div className="brand">
-            <span className="brand-mark"><Siren size={15} /></span>
-            <span>RESCUE <b>PROTOCOL</b></span>
+            <span className="brand-mark">
+              <Siren size={15} />
+            </span>
+            <span>
+              RESCUE <b>PROTOCOL</b>
+            </span>
           </div>
           <p>
-            A competitive intervention primitive for Solana.<br />
+            A competitive intervention primitive for Solana.
+            <br />
             MagicBlock-powered execution before liquidation.
           </p>
         </div>
         <div className="footer-links">
           <div>
             <span>PROTOCOL</span>
-            <a href="#simulator">Intervention Zone</a>
-            <a href="#invariants">Live Verification</a>
-            <a href="#problem">The Problem</a>
+            <a href="/demo">Intervention Zone</a>
+            <a href="/activity">Live Activity</a>
+            <a href="/proof/rescue-record-rp-0427">RescueRecords</a>
           </div>
           <div>
             <span>VERIFY</span>
-            <a href="#invariants">Proof Inspector</a>
-            <a href="#mechanism">How It Works</a>
+            <a href="/verify">Proof Inspector</a>
+            <a href="/protocol">How It Works</a>
+            <a href="/receipts/rp-0427-alpha">Settlement Receipt</a>
           </div>
           <div>
             <span>ECOSYSTEM</span>
@@ -635,12 +641,11 @@ export default function Page() {
         </div>
         <div className="footer-bottom">
           <span>© 2026 RESCUE PROTOCOL</span>
-          <span><i /> DEVNET PROTOTYPE</span>
+          <span>
+            <i /> DEVNET PROTOTYPE
+          </span>
           <span>TEE STATUS: SIMULATED</span>
           <span>SETTLEMENT: SIMULATED</span>
-          <button onClick={reset} style={{ background: 'none', border: '1px solid #273344', color: '#697482', fontSize: '10px', fontFamily: 'var(--font-data)', padding: '2px 8px', cursor: 'pointer', borderRadius: '3px' }}>
-            RESET DEMO
-          </button>
         </div>
       </footer>
 
