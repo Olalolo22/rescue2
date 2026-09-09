@@ -93,6 +93,7 @@ export default function Page() {
         <h1>Defense against the <em>liquidation race.</em></h1>
         <p>Monitor a demo position, trigger the incident, and watch a sealed MagicBlock intervention commit a better outcome to Solana.</p>
         <div className="truth-strip"><span className={connected ? 'live' : ''}>{connected ? 'WALLET: LIVE' : 'WALLET: DISCONNECTED'}</span><span>POSITION: SIMULATED</span><span>TEE: SIMULATED</span><span>SETTLEMENT: SIMULATED</span>{connected && balanceSol !== null && <b>{balanceSol.toFixed(2)} SOL DEVNET</b>}</div>
+        <div className="session-status"><div><span className="status-kicker">SESSION STATUS</span><strong>{connected ? 'LIVE WALLET CONNECTED' : 'CONNECT WALLET TO ACTIVATE SESSION'}</strong><p>{connected ? 'Your Devnet identity is live. The rescue position below remains a clearly labeled demo state.' : 'Connect Phantom, Solflare, or Backpack to bind a real Devnet identity to this simulated rescue.'}</p></div><div className="session-columns"><div><span>LIVE WALLET</span><b>{connected && publicKey ? `${publicKey.slice(0, 4)}...${publicKey.slice(-4)}` : 'Not connected'}</b>{connected && balanceSol !== null && <small>{balanceSol.toFixed(2)} SOL · DEVNET</small>}</div><div><span>DEMO POSITION</span><b>SOL / USDC</b><small>Simulated collateral, debt, and auction</small></div></div></div>
       </div>
       <div className="program-badge">
         <span>DEVNET PROGRAM</span>
@@ -182,7 +183,7 @@ function Telemetry({ label, value, good }: { label: string; value: string; good?
 
 function PositionCard({ telemetry, phase, onCrash, onRestore, borrowerKey, connected }: { telemetry: PositionTelemetry; phase: Phase; onCrash: () => void; onRestore: () => void; borrowerKey?: string | null; connected?: boolean }) { 
   const risk = phase !== 'healthy'; 
-  const displayKey = borrowerKey ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}` : '7xK4...9e2';
+  const displayKey = borrowerKey ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}` : 'Not connected';
   return (
     <section className={`hud-card position-card ${risk ? 'danger-card' : ''}`}>
       <div className="card-top">
