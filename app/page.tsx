@@ -11,11 +11,8 @@ import {
   Copy,
   ExternalLink,
   FileCheck2,
-  HelpCircle,
-  Info,
   LockKeyhole,
   Radio,
-  RefreshCw,
   ShieldAlert,
   ShieldCheck,
   Siren,
@@ -33,7 +30,6 @@ import { KNOWN_PDAS } from '@/lib/protocol/pda'
 import {
   MevInterceptLog,
   PositionTelemetry,
-  ProtocolState,
   SealedBid,
 } from '@/lib/protocol/types'
 import {
@@ -41,7 +37,6 @@ import {
   INITIAL_BIDS,
   INITIAL_MEV_LOGS,
   generateMevAttackProbeLogs,
-  generateRescueRecordReceipt,
   fetchLiveTelemetryApi,
   executeMevProbeApi,
   executeE2ELifecycleApi,
@@ -64,23 +59,17 @@ export default function Page() {
   const [phase, setPhase] = useState<Phase>('healthy')
   const [seconds, setSeconds] = useState(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
   const [recordOpen, setRecordOpen] = useState(false)
-
-  // Profile configuration: Connect Real Wallet vs Anchor Benchmark Spec
   const [positionProfile, setPositionProfile] = useState<'wallet' | 'benchmark'>('benchmark')
-  const [showPresenterScript, setShowPresenterScript] = useState(false)
 
-  // Backend connection and engine state
-  const [engineMode, setEngineMode] = useState<'live' | 'demo'>('live')
+  // Backend state — always live, no toggle
   const [liveSlot, setLiveSlot] = useState<number>(284719445)
   const [networkLatency, setNetworkLatency] = useState<number>(14)
-  const [backendStatus, setBackendStatus] = useState<'CONNECTED' | 'LOCAL'>('CONNECTED')
   const [isRunningE2e, setIsRunningE2e] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [verifyResult, setVerifyResult] = useState<VerifySuiteResponse | null>(null)
 
-  // Reactive telemetry state
   const [telemetry, setTelemetry] = useState<PositionTelemetry>(INITIAL_TELEMETRY)
-  const [bids, setBids] = useState<SealedBid[]>(INITIAL_BIDS)
+  const [bids] = useState<SealedBid[]>(INITIAL_BIDS)
   const [mevLogs, setMevLogs] = useState<MevInterceptLog[]>(INITIAL_MEV_LOGS)
   const [isProbingMev, setIsProbingMev] = useState(false)
   const [copiedPda, setCopiedPda] = useState(false)
@@ -100,7 +89,6 @@ export default function Page() {
     }
   }, [connected, publicKey])
 
-  // Profile switch handler
   const handleSelectProfile = (profile: 'wallet' | 'benchmark') => {
     setPositionProfile(profile)
     setPhase('healthy')
@@ -119,7 +107,7 @@ export default function Page() {
     })
   }
 
-  // Poll live Solana Devnet telemetry via backend API
+  // Poll live Solana Devnet telemetry
   useEffect(() => {
     let mounted = true
     async function updateTelemetry() {
@@ -127,7 +115,6 @@ export default function Page() {
       if (!mounted || !data) return
       setLiveSlot(data.slot)
       setNetworkLatency(data.latencyMs)
-      setBackendStatus('CONNECTED')
       if (data.pythSolPriceUsd && phase === 'healthy') {
         setTelemetry((prev) => ({
           ...prev,
@@ -136,28 +123,21 @@ export default function Page() {
         }))
       }
     }
-
     updateTelemetry()
     const interval = setInterval(updateTelemetry, 15000)
-    return () => {
-      mounted = false
-      clearInterval(interval)
-    }
+    return () => { mounted = false; clearInterval(interval) }
   }, [phase])
 
   // 60-second reverse auction timer
   useEffect(() => {
     if (phase !== 'intervention') return
-    if (seconds <= 0) {
-      setPhase('fallback')
-      return
-    }
-    const timer = window.setTimeout(() => setSeconds((value) => Math.max(0, value - 1)), 1000)
+    if (seconds <= 0) { setPhase('fallback'); return }
+    const timer = window.setTimeout(() => setSeconds((v) => Math.max(0, v - 1)), 1000)
     return () => window.clearTimeout(timer)
   }, [phase, seconds])
 
   const activeIndex = useMemo(
-    () => (phase === 'fallback' ? 2 : phases.findIndex((item) => item.id === phase)),
+    () => (phase === 'fallback' ? 2 : phases.findIndex((p) => p.id === phase)),
     [phase]
   )
 
@@ -214,18 +194,14 @@ export default function Page() {
 
   const handleMevAttackProbe = async () => {
     setIsProbingMev(true)
-
-    if (engineMode === 'live') {
-      const res = await executeMevProbeApi()
-      if (res && res.logs && res.logs.length) {
-        setLiveSlot(res.slot)
-        setMevLogs((prev) => [...prev, ...res.logs])
-        setIsProbingMev(false)
-        return
-      }
+    const res = await executeMevProbeApi()
+    if (res && res.logs && res.logs.length) {
+      setLiveSlot(res.slot)
+      setMevLogs((prev) => [...prev, ...res.logs])
+      setIsProbingMev(false)
+      return
     }
-
-    // Client demo fallback
+    // Client fallback if RPC is slow
     const newLogs = generateMevAttackProbeLogs()
     setTimeout(() => {
       setMevLogs((prev) => [...prev, ...newLogs])
@@ -240,7 +216,6 @@ export default function Page() {
 
     const res = await executeE2ELifecycleApi()
 
-    // Step 1: Trip position into at-risk
     setPhase('at-risk')
     setTelemetry((prev) => ({
       ...prev,
@@ -249,14 +224,11 @@ export default function Page() {
       healthFactor: 0.88,
       state: 'AT_RISK',
     }))
-
     await new Promise((r) => setTimeout(r, 900))
 
-    // Step 2: Delegate to MagicBlock TEE
     setPhase('intervention')
     setSeconds(59)
     setTelemetry((prev) => ({ ...prev, state: 'IN_INTERVENTION_ZONE' }))
-
     if (res && res.steps) {
       setLiveSlot(res.executionSlot)
       const e2eLogs: MevInterceptLog[] = res.steps.slice(3, 6).map((s) => ({
@@ -269,16 +241,12 @@ export default function Page() {
       }))
       setMevLogs((prev) => [...prev, ...e2eLogs])
     }
-
     await new Promise((r) => setTimeout(r, 1400))
 
-    // Step 3: Match winner in TEE
     setPhase('matched')
     setTelemetry((prev) => ({ ...prev, state: 'MATCHED' }))
-
     await new Promise((r) => setTimeout(r, 1100))
 
-    // Step 4: Settle and anchor RescueRecord to L1
     setPhase('settled')
     setTelemetry((prev) => ({ ...prev, state: 'SETTLED', healthFactor: 1.2 }))
     setIsRunningE2e(false)
@@ -287,14 +255,10 @@ export default function Page() {
   const handleRunVerifySuite = async () => {
     setIsVerifying(true)
     const res = await executeVerifySuiteApi()
-    if (res) {
-      setVerifyResult(res)
-      setLiveSlot(res.slot)
-    }
+    if (res) { setVerifyResult(res); setLiveSlot(res.slot) }
     setIsVerifying(false)
   }
 
-  // Active borrower label & incident ID
   const activeBorrower = positionProfile === 'wallet' && publicKey
     ? publicKey
     : PROTOCOL_CONSTANTS.BORROWER_PUBKEY
@@ -304,6 +268,7 @@ export default function Page() {
 
   return (
     <main className="site-shell">
+
       {/* ─── NAVIGATION ─── */}
       <header className="site-nav">
         <a className="brand" href="#top" aria-label="Rescue Protocol home">
@@ -324,149 +289,29 @@ export default function Page() {
         </div>
       </header>
 
-      {/* ─── LIVE TELEMETRY & BACKEND ENGINE STRIP ─── */}
+      {/* ─── TELEMETRY STRIP — liveness only, no controls ─── */}
       <div className="protocol-strip" aria-label="Protocol telemetry">
         <span><i className="telemetry-dot" /> DEVNET RPC</span>
         <span>SLOT: <b>{liveSlot.toLocaleString()}</b></span>
-        <span>BACKEND ENGINE: <b>{engineMode === 'live' ? 'API + SOLANA DEVNET' : 'LOCAL SIMULATOR'}</b></span>
         <span>LATENCY: <b>{networkLatency}ms</b></span>
         <span>PYTH SOL/USD: <b>${telemetry.solPriceUsd.toFixed(2)}</b></span>
-        <div className="strip-right" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            type="button"
-            onClick={() => setShowPresenterScript((prev) => !prev)}
-            style={{
-              padding: '2px 9px',
-              fontSize: '9px',
-              fontFamily: 'var(--font-data)',
-              borderRadius: '3px',
-              border: showPresenterScript ? '1px solid var(--cyan)' : '1px solid #323b49',
-              background: showPresenterScript ? 'rgba(106, 215, 229, 0.15)' : 'transparent',
-              color: showPresenterScript ? 'var(--cyan)' : '#8fa89e',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            <HelpCircle size={10} /> {showPresenterScript ? 'HIDE DEMO GUIDE' : 'PRESENTER DEMO GUIDE'}
-          </button>
-          <span style={{ color: '#8fa89e', fontSize: '9px' }}>ENGINE:</span>
-          <button
-            type="button"
-            onClick={() => setEngineMode('live')}
-            style={{
-              padding: '2px 8px',
-              fontSize: '9px',
-              fontFamily: 'var(--font-data)',
-              borderRadius: '3px',
-              border: engineMode === 'live' ? '1px solid var(--green)' : '1px solid #29313b',
-              background: engineMode === 'live' ? 'rgba(0, 245, 160, 0.12)' : 'transparent',
-              color: engineMode === 'live' ? 'var(--green)' : '#697482',
-              cursor: 'pointer',
-            }}
-          >
-            [LIVE BACKEND]
-          </button>
-          <button
-            type="button"
-            onClick={() => setEngineMode('demo')}
-            style={{
-              padding: '2px 8px',
-              fontSize: '9px',
-              fontFamily: 'var(--font-data)',
-              borderRadius: '3px',
-              border: engineMode === 'demo' ? '1px solid #a855f7' : '1px solid #29313b',
-              background: engineMode === 'demo' ? 'rgba(168, 85, 247, 0.12)' : 'transparent',
-              color: engineMode === 'demo' ? '#c084fc' : '#697482',
-              cursor: 'pointer',
-            }}
-          >
-            [DEMO MODE]
-          </button>
-        </div>
+        <span className="strip-right"><b>MAGICBLOCK</b> / EPHEMERAL EXECUTION</span>
       </div>
 
-      {/* ─── PRESENTER DEMO SCRIPT DRAWER ─── */}
-      {showPresenterScript && (
-        <section
-          style={{
-            margin: '16px 0',
-            padding: '20px 24px',
-            border: '1px solid #384252',
-            background: '#0d1117',
-            borderRadius: '4px',
-            boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
-          }}
-          aria-label="Presenter Pitch Cheatsheet"
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e2634', paddingBottom: '10px' }}>
-            <div className="eyebrow" style={{ color: 'var(--cyan)' }}>
-              <Info size={14} /> PRESENTER DEMO CHEATSHEET &amp; REAL VS. SIMULATED MAP
-            </div>
-            <button
-              onClick={() => setShowPresenterScript(false)}
-              style={{ background: 'none', border: 0, color: '#8fa89e', cursor: 'pointer' }}
-              aria-label="Close cheatsheet"
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px', marginTop: '16px' }}>
-            <div>
-              <span style={{ font: '10px var(--font-data)', color: 'var(--purple)', letterSpacing: '.1em', display: 'block', marginBottom: '6px' }}>
-                1. THE 30-SECOND HOOK (PROBLEM)
-              </span>
-              <p style={{ color: '#c3cad4', fontSize: '13px', lineHeight: '1.55', margin: 0 }}>
-                &ldquo;On Solana today, when a lending position reaches the danger zone, public MEV searchers immediately snipe it in the mempool. Borrowers lose 8% to 10% in liquidation penalties with zero recourse.&rdquo;
-              </p>
-            </div>
-
-            <div>
-              <span style={{ font: '10px var(--font-data)', color: 'var(--green)', letterSpacing: '.1em', display: 'block', marginBottom: '6px' }}>
-                2. THE SOLUTION (MAGICBLOCK TEE)
-              </span>
-              <p style={{ color: '#c3cad4', fontSize: '13px', lineHeight: '1.55', margin: 0 }}>
-                &ldquo;Rescue catches the position at HF 1.05 and delegates it into a confidential MagicBlock TEE. Outside MEV bots are rejected on L1 with <b>Error 3007</b>. Inside the TEE, liquidators bid down the penalty in a private reverse auction.&rdquo;
-              </p>
-            </div>
-
-            <div>
-              <span style={{ font: '10px var(--font-data)', color: 'var(--cyan)', letterSpacing: '.1em', display: 'block', marginBottom: '6px' }}>
-                3. DEMO CLICK-THROUGH
-              </span>
-              <ul style={{ color: '#9ca5b1', fontSize: '12px', margin: 0, paddingLeft: '16px', lineHeight: '1.6' }}>
-                <li><b>Step 1:</b> Connect Devnet wallet (shows your real SOL balance).</li>
-                <li><b>Step 2:</b> Click <i>Simulate Drop (-18%)</i> [Simulated price shock].</li>
-                <li><b>Step 3:</b> Click <i>Enter TEE Zone</i> [Delegates PDA to TEE].</li>
-                <li><b>Step 4:</b> Click <i>Probe MEV</i> [Shows live L1 Error 3007 defense].</li>
-                <li><b>Step 5:</b> Click <i>Match &amp; Settle</i> [Commits RescueRecord PDA to Solana L1].</li>
-              </ul>
-            </div>
-          </div>
-
-          <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #1c232f', display: 'flex', gap: '20px', flexWrap: 'wrap', font: '10px var(--font-data)' }}>
-            <span style={{ color: 'var(--green)' }}>● REAL: Connected Wallet Balance &amp; Keys</span>
-            <span style={{ color: 'var(--purple)' }}>● REAL: MagicBlock TEE DLP &amp; Error 3007 Lock</span>
-            <span style={{ color: 'var(--cyan)' }}>● REAL: Anchor Smart Contracts &amp; RescueRecord PDA</span>
-            <span style={{ color: '#eb747a' }}>⚡ SIMULATED: -18% Market Crash Trigger (Instant Demo)</span>
-            <span style={{ color: '#b9a5ff' }}>⚡ SIMULATED: Liquidator Bidders (Inside Enclave)</span>
-          </div>
-        </section>
-      )}
-
-      {/* ─── HERO SECTION ─── */}
+      {/* ─── HERO ─── */}
       <section className="hero-section motion-enter" id="top">
         <div className="hero-copy">
           <div className="eyebrow">
             <span className="status-pip" /> MAGICBLOCK-POWERED EMERGENCY INFRASTRUCTURE
           </div>
           <h1>
-            Liquidation protection for the moment <em>before</em> liquidation.
+            Liquidation is a race.<br />
+            <em>Rescue makes it a market.</em>
           </h1>
           <p className="hero-lede">
-            Rescue inserts a 60-second confidential TEE shield where liquidators compete in a reverse auction to offer the borrower the lowest penalty—deflecting MEV front-runners with Error 3007.
+            When a lending position crosses the danger line, MEV bots have already won.
+            Rescue inserts a 60-second confidential window — liquidators compete to save
+            the borrower instead of racing to punish them.
           </p>
           <div className="hero-actions">
             <button className="primary-button" onClick={beginRisk}>
@@ -521,10 +366,14 @@ export default function Page() {
           <h2>Public liquidation is a race the borrower has already lost.</h2>
           <div>
             <p>
-              When collateral crosses the danger line on base Solana, MEV searchers immediately snipe and extract an 8.00% penalty in the public mempool.
+              When collateral crosses the danger line on base Solana, MEV searchers
+              immediately snipe and extract an 8.00% penalty in the public mempool.
+              The borrower has no recourse, no market, no negotiation.
             </p>
             <p>
-              Rescue intercepts the distressed position and delegates it into a confidential MagicBlock TEE enclave. Outside bots cannot touch it.
+              Rescue intercepts the distressed position and delegates it into a
+              confidential MagicBlock TEE enclave. Outside bots cannot touch it.
+              Inside, liquidators compete to offer the <em>lowest</em> penalty.
             </p>
           </div>
         </div>
@@ -559,7 +408,7 @@ export default function Page() {
         </div>
       </section>
 
-      {/* ─── SIMULATOR SECTION ─── */}
+      {/* ─── SIMULATOR ─── */}
       <section className="simulator-section motion-section" id="simulator">
         <div className="simulator-intro">
           <div>
@@ -567,24 +416,17 @@ export default function Page() {
             <h2>Trigger the emergency.</h2>
             <p>Watch a healthy position move through the exact lifecycle Rescue is built to protect.</p>
 
-            {/* Position Profile Selector: Connected Wallet vs Benchmark */}
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginTop: '12px', padding: '4px', border: '1px solid #28313e', borderRadius: '4px', background: '#0e1218' }}>
               <span style={{ fontSize: '9px', color: '#7a8696', paddingLeft: '6px', font: '9px var(--font-data)' }}>POSITION SOURCE:</span>
               <button
                 type="button"
                 onClick={() => handleSelectProfile('wallet')}
                 style={{
-                  padding: '3px 10px',
-                  fontSize: '9px',
-                  fontFamily: 'var(--font-data)',
-                  borderRadius: '3px',
+                  padding: '3px 10px', fontSize: '9px', fontFamily: 'var(--font-data)', borderRadius: '3px',
                   border: positionProfile === 'wallet' ? '1px solid var(--green)' : '1px solid transparent',
                   background: positionProfile === 'wallet' ? 'rgba(0, 245, 160, 0.12)' : 'transparent',
                   color: positionProfile === 'wallet' ? 'var(--green)' : '#8fa89e',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
+                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px',
                 }}
               >
                 <Wallet size={10} />
@@ -596,10 +438,7 @@ export default function Page() {
                 type="button"
                 onClick={() => handleSelectProfile('benchmark')}
                 style={{
-                  padding: '3px 10px',
-                  fontSize: '9px',
-                  fontFamily: 'var(--font-data)',
-                  borderRadius: '3px',
+                  padding: '3px 10px', fontSize: '9px', fontFamily: 'var(--font-data)', borderRadius: '3px',
                   border: positionProfile === 'benchmark' ? '1px solid var(--purple)' : '1px solid transparent',
                   background: positionProfile === 'benchmark' ? 'rgba(169, 148, 244, 0.14)' : 'transparent',
                   color: positionProfile === 'benchmark' ? 'var(--purple)' : '#8fa89e',
@@ -621,11 +460,7 @@ export default function Page() {
               type="button"
               className="subtle-button"
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '10px',
-                padding: '5px 10px',
+                display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '10px', padding: '5px 10px',
                 background: isRunningE2e ? 'rgba(0, 245, 160, 0.15)' : '#161c24',
                 borderColor: isRunningE2e ? 'var(--green)' : '#273344',
                 color: isRunningE2e ? 'var(--green)' : '#c3cad4',
@@ -652,7 +487,6 @@ export default function Page() {
           )}
         </div>
 
-        {/* State Views */}
         {phase === 'healthy' && (
           <HealthyState
             telemetry={telemetry}
@@ -678,7 +512,6 @@ export default function Page() {
             bids={bids}
             mevLogs={mevLogs}
             isProbingMev={isProbingMev}
-            engineMode={engineMode}
             onProbeMev={handleMevAttackProbe}
             onMatch={() => {
               setPhase('matched')
@@ -710,7 +543,7 @@ export default function Page() {
         {phase === 'fallback' && <FallbackState onReset={reset} />}
       </section>
 
-      {/* ─── INVARIANTS SCORECARD & LIVE VERIFICATION ─── */}
+      {/* ─── INVARIANTS ─── */}
       <section className="proof-section" id="invariants">
         <div className="proof-copy">
           <div className="section-label">VERIFIED CORE INVARIANTS</div>
@@ -724,7 +557,6 @@ export default function Page() {
               </span>
             ))}
           </div>
-
           <div style={{ marginTop: '24px', display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
@@ -739,7 +571,6 @@ export default function Page() {
               RUN SIMULATION AGAIN <ArrowRight size={14} />
             </a>
           </div>
-
           {verifyResult && (
             <div style={{ marginTop: '22px', border: '1px solid #273344', borderRadius: '4px', background: '#0e1218', padding: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e2634', paddingBottom: '8px', fontSize: '11px', fontFamily: 'var(--font-data)' }}>
@@ -757,7 +588,6 @@ export default function Page() {
             </div>
           )}
         </div>
-
         <div className="proof-stat">
           <span>SURPLUS SAVED</span>
           <strong>+5.50%</strong>
@@ -766,22 +596,55 @@ export default function Page() {
         </div>
       </section>
 
-      {/* ─── INSTITUTIONAL FOOTER ─── */}
+      {/* ─── FOOTER (mbv2) ─── */}
       <footer className="site-footer">
-        <div className="brand">
-          <span className="brand-mark"><Siren size={15} /></span>
-          <span>RESCUE <b>PROTOCOL</b></span>
+        <div className="footer-intro">
+          <div className="brand">
+            <span className="brand-mark"><Siren size={15} /></span>
+            <span>RESCUE <b>PROTOCOL</b></span>
+          </div>
+          <p>
+            A competitive intervention primitive for Solana.<br />
+            MagicBlock-powered execution before liquidation.
+          </p>
         </div>
-        <p>A MagicBlock-powered confidential pre-liquidation intervention primitive for Solana.</p>
-        <div>
-          <a href="https://github.com/Olalolo22/rescue" target="_blank" rel="noreferrer">
-            GITHUB <ExternalLink size={13} />
-          </a>
-          <button onClick={reset}>RESET DEMO</button>
+        <div className="footer-links">
+          <div>
+            <span>PROTOCOL</span>
+            <a href="#simulator">Intervention Zone</a>
+            <a href="#invariants">Live Verification</a>
+            <a href="#problem">The Problem</a>
+          </div>
+          <div>
+            <span>VERIFY</span>
+            <a href="#invariants">Proof Inspector</a>
+            <a href="#mechanism">How It Works</a>
+          </div>
+          <div>
+            <span>ECOSYSTEM</span>
+            <a href="https://www.magicblock.xyz/" target="_blank" rel="noreferrer">
+              MagicBlock <ExternalLink size={11} />
+            </a>
+            <a href="https://solana.com/" target="_blank" rel="noreferrer">
+              Solana <ExternalLink size={11} />
+            </a>
+            <a href="https://github.com/Olalolo22/rescue2" target="_blank" rel="noreferrer">
+              GitHub <ExternalLink size={11} />
+            </a>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <span>© 2026 RESCUE PROTOCOL</span>
+          <span><i /> DEVNET PROTOTYPE</span>
+          <span>TEE STATUS: SIMULATED</span>
+          <span>SETTLEMENT: SIMULATED</span>
+          <button onClick={reset} style={{ background: 'none', border: '1px solid #273344', color: '#697482', fontSize: '10px', fontFamily: 'var(--font-data)', padding: '2px 8px', cursor: 'pointer', borderRadius: '3px' }}>
+            RESET DEMO
+          </button>
         </div>
       </footer>
 
-      {/* ─── RESCUERECORD PDA MODAL ─── */}
+      {/* ─── RESCUERECORD MODAL ─── */}
       {recordOpen && (
         <RescueRecord
           copied={copiedPda}
@@ -799,39 +662,19 @@ export default function Page() {
   )
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   State Sub-Components
-   ───────────────────────────────────────────────────────────────────────────── */
+/* ─── SUB-COMPONENTS ─── */
 
-function HealthyState({
-  telemetry,
-  onCrash,
-  borrowerKey,
-  connected,
-  balanceSol,
-  positionProfile,
-  onOpenModal,
-}: {
-  telemetry: PositionTelemetry
-  onCrash: () => void
-  borrowerKey?: string | null
-  connected?: boolean
-  balanceSol?: number | null
-  positionProfile: 'wallet' | 'benchmark'
-  onOpenModal: () => void
+function HealthyState({ telemetry, onCrash, borrowerKey, connected, balanceSol, positionProfile, onOpenModal }: {
+  telemetry: PositionTelemetry; onCrash: () => void; borrowerKey?: string | null
+  connected?: boolean; balanceSol?: number | null; positionProfile: 'wallet' | 'benchmark'; onOpenModal: () => void
 }) {
-  const displayKey = borrowerKey
-    ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}`
-    : '7xK4...9e2'
-
+  const displayKey = borrowerKey ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}` : '7xK4...9e2'
   return (
     <div className="demo-state quiet-layout">
       <section className="position-card panel">
         <div className="panel-kicker">
           <ShieldCheck size={16} /> MONITORED POSITION <span className="safe-tag">HEALTHY</span>
         </div>
-
-        {/* Borrower & Real Devnet Balance Badge */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0 12px', borderBottom: '1px solid #1c222c', fontSize: '11px', fontFamily: 'var(--font-data)' }}>
           <div>
             <span style={{ color: '#737e8d' }}>BORROWER: </span>
@@ -844,88 +687,50 @@ function HealthyState({
           </div>
           <div>
             {connected && balanceSol !== null ? (
-              <span style={{ color: 'var(--green)' }}>
-                DEVNET BALANCE: <b>{balanceSol.toFixed(2)} SOL</b>
-              </span>
+              <span style={{ color: 'var(--green)' }}>DEVNET BALANCE: <b>{balanceSol?.toFixed(2)} SOL</b></span>
             ) : (
-              <button
-                type="button"
-                onClick={onOpenModal}
-                style={{
-                  background: 'none',
-                  border: '1px solid #2d604e',
-                  color: 'var(--green)',
-                  fontSize: '10px',
-                  fontFamily: 'var(--font-data)',
-                  padding: '2px 7px',
-                  cursor: 'pointer',
-                  borderRadius: '3px',
-                }}
-              >
+              <button type="button" onClick={onOpenModal} style={{ background: 'none', border: '1px solid #2d604e', color: 'var(--green)', fontSize: '10px', fontFamily: 'var(--font-data)', padding: '2px 7px', cursor: 'pointer', borderRadius: '3px' }}>
                 + CONNECT WALLET
               </button>
             )}
           </div>
         </div>
-
         <div className="position-value">${telemetry.collateralUsd.toFixed(2)}</div>
-        <div className="position-sub">
-          {telemetry.collateralSol.toFixed(2)} SOL Collateral &middot; ${telemetry.debtUsd.toFixed(2)} USDC Debt
-        </div>
-
+        <div className="position-sub">{telemetry.collateralSol.toFixed(2)} SOL Collateral &middot; ${telemetry.debtUsd.toFixed(2)} USDC Debt</div>
         <div className="metrics-grid">
           <Metric label="SOL ORACLE PRICE" value={`$${telemetry.solPriceUsd.toFixed(2)}`} />
           <Metric label="HEALTH FACTOR" value={telemetry.healthFactor.toFixed(2)} tone="green" />
           <Metric label="LIQUIDATION THRESHOLD" value={`$${telemetry.liquidationThresholdUsd.toFixed(2)}`} />
         </div>
-
         <div style={{ marginTop: '30px' }}>
           <button className="primary-button trigger-button" onClick={onCrash} style={{ width: '100%' }}>
             <Siren size={17} /> TRIGGER SIMULATED MARKET DROP (-18%) <ArrowRight size={16} />
           </button>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', fontSize: '10px', fontFamily: 'var(--font-data)', color: '#707b89' }}>
             <span>⚡ SIMULATED EVENT FOR DEMO</span>
-            <span>CRASHES ORACLE TO $82.00 &rarr; TRIPS HF TO 0.88</span>
+            <span>CRASHES ORACLE TO $82.00 → TRIPS HF TO 0.88</span>
           </div>
         </div>
       </section>
-
       <aside className="demo-note">
         <span className="section-label">THE RESCUE PRINCIPLE</span>
         <h3>Liquidation is not inevitable.</h3>
         <p>When collateral crosses the danger line, Rescue buys the borrower a private moment to find a better outcome.</p>
-        <div className="principle-line">
-          <LockKeyhole size={15} />
-          <span>CONFIDENTIAL BY DEFAULT (MAGICBLOCK TEE)</span>
-        </div>
-        <div className="principle-line">
-          <ShieldCheck size={15} />
-          <span>FAILS OPEN, NEVER GUARANTEES</span>
-        </div>
+        <div className="principle-line"><LockKeyhole size={15} /><span>CONFIDENTIAL BY DEFAULT (MAGICBLOCK TEE)</span></div>
+        <div className="principle-line"><ShieldCheck size={15} /><span>FAILS OPEN, NEVER GUARANTEES</span></div>
       </aside>
     </div>
   )
 }
 
-function AtRiskState({
-  telemetry,
-  onRescue,
-  borrowerKey,
-  connected,
-}: {
-  telemetry: PositionTelemetry
-  onRescue: () => void
-  borrowerKey?: string | null
-  connected?: boolean
+function AtRiskState({ telemetry, onRescue, borrowerKey, connected }: {
+  telemetry: PositionTelemetry; onRescue: () => void; borrowerKey?: string | null; connected?: boolean
 }) {
   const displayKey = borrowerKey ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}` : '7xK4...9e2'
-
   return (
     <div className="demo-state risk-layout">
       <section className="crash-panel">
-        <div className="eyebrow danger-eyebrow">
-          <CircleAlert size={15} /> MARKET DOWNTURN DETECTED &middot; BORROWER: {displayKey}
-        </div>
+        <div className="eyebrow danger-eyebrow"><CircleAlert size={15} /> MARKET DOWNTURN DETECTED &middot; BORROWER: {displayKey}</div>
         <h3>POSITION AT RISK</h3>
         <div className="crash-values">
           <div>
@@ -939,134 +744,66 @@ function AtRiskState({
             <small className="danger-text">CRITICAL BREACH BELOW 1.05</small>
           </div>
         </div>
-        <div className="danger-rule">
-          <span />
-          <b>PUBLIC LIQUIDATION THREAT DETECTED ON L1 &middot; MEV SEARCHERS ARMED</b>
-        </div>
+        <div className="danger-rule"><span /><b>PUBLIC LIQUIDATION THREAT DETECTED ON L1 &middot; MEV SEARCHERS ARMED</b></div>
       </section>
-
       <section className="rescue-cta panel">
-        <div className="panel-kicker">
-          <ShieldAlert size={16} /> EMERGENCY INTERVENTION
-        </div>
+        <div className="panel-kicker"><ShieldAlert size={16} /> EMERGENCY INTERVENTION</div>
         <h3>Protect this position<br /><em>before it&apos;s public.</em></h3>
-        <p>
-          Rescue temporarily locks public liquidation on L1 and creates a 60-second confidential TEE window for competitive liquidator intervention.
-        </p>
-        <button className="rescue-button" onClick={onRescue}>
-          DELEGATE &amp; ENTER TEE ZONE <ArrowRight size={17} />
-        </button>
-        <div className="cta-note">
-          <Clock3 size={14} /> 60 SECONDS &middot; MAGICBLOCK TEE ENCLAVE &middot; MEV DEFLECTED
-        </div>
+        <p>Rescue temporarily locks public liquidation on L1 and creates a 60-second confidential TEE window for competitive liquidator intervention.</p>
+        <button className="rescue-button" onClick={onRescue}>DELEGATE &amp; ENTER TEE ZONE <ArrowRight size={17} /></button>
+        <div className="cta-note"><Clock3 size={14} /> 60 SECONDS &middot; MAGICBLOCK TEE ENCLAVE &middot; MEV DEFLECTED</div>
       </section>
     </div>
   )
 }
 
-function InterventionZone({
-  seconds,
-  bids,
-  mevLogs,
-  isProbingMev,
-  engineMode,
-  onProbeMev,
-  onMatch,
-  onExpire,
-}: {
-  seconds: number
-  bids: SealedBid[]
-  mevLogs: MevInterceptLog[]
-  isProbingMev: boolean
-  engineMode: 'live' | 'demo'
-  onProbeMev: () => void
-  onMatch: () => void
-  onExpire: () => void
+function InterventionZone({ seconds, bids, mevLogs, isProbingMev, onProbeMev, onMatch, onExpire }: {
+  seconds: number; bids: SealedBid[]; mevLogs: MevInterceptLog[]
+  isProbingMev: boolean; onProbeMev: () => void; onMatch: () => void; onExpire: () => void
 }) {
   return (
     <div className="demo-state zone-layout">
       <section className="zone-panel">
         <div className="zone-header">
           <div>
-            <div className="eyebrow purple-eyebrow">
-              <span className="pulse-dot" /> MAGICBLOCK EPHEMERAL ROLLUP (TEE ACTIVE)
-            </div>
+            <div className="eyebrow purple-eyebrow"><span className="pulse-dot" /> MAGICBLOCK EPHEMERAL ROLLUP (TEE ACTIVE)</div>
             <h3>INTERVENTION ZONE</h3>
             <p>Position delegated from Solana L1. Liquidator sealed reverse auction open.</p>
           </div>
           <div className="countdown" role="timer" aria-live="assertive" aria-label={`${seconds} seconds remaining`}>
             <span>TIME REMAINING</span>
             <strong>00:{String(seconds).padStart(2, '0')}</strong>
-            <div className="countdown-track">
-              <i style={{ width: `${(seconds / 60) * 100}%` }} />
-            </div>
+            <div className="countdown-track"><i style={{ width: `${(seconds / 60) * 100}%` }} /></div>
           </div>
         </div>
-
         <div className="delegation-strip">
-          <span>BASE SOLANA</span>
-          <ArrowRight size={14} />
+          <span>BASE SOLANA</span><ArrowRight size={14} />
           <b>DLP DELEGATION ACTIVE (ERROR 3007 LOCK)</b>
-          <ArrowRight size={14} />
-          <span>MAGICBLOCK TEE ENCLAVE</span>
+          <ArrowRight size={14} /><span>MAGICBLOCK TEE ENCLAVE</span>
         </div>
-
-        {/* Sealed Bids Grid */}
         <div className="sealed-grid">
           <SealStatus icon={<ShieldCheck />} label="PUBLIC LIQUIDATION" value="BLOCKED (3007)" accent="green" />
           <SealStatus icon={<LockKeyhole />} label="BIDS STATUS" value="3 SEALED (ENCRYPTED)" />
           <SealStatus icon={<FileCheck2 />} label="RESERVE CAP" value="6.50% (P_RESERVE)" accent="purple" />
           <SealStatus icon={<Copy />} label="CROSS-READ PRIVACY" value="HARDWARE ENFORCED" />
         </div>
-
         <div className="zone-actions">
-          <button className="match-button" onClick={onMatch}>
-            CLOSE AUCTION &amp; MATCH WINNER <ArrowRight size={16} />
-          </button>
-          <button className="subtle-button" onClick={onExpire}>
-            LET AUCTION EXPIRE (FAIL-OPEN)
-          </button>
+          <button className="match-button" onClick={onMatch}>CLOSE AUCTION &amp; MATCH WINNER <ArrowRight size={16} /></button>
+          <button className="subtle-button" onClick={onExpire}>LET AUCTION EXPIRE (FAIL-OPEN)</button>
         </div>
-
-        <p className="zone-disclaimer">
-          <LockKeyhole size={13} /> Competing lenders cannot inspect each other&apos;s bids (CrossReadDenied 6013). Winner selected by lowest valid penalty.
-        </p>
+        <p className="zone-disclaimer"><LockKeyhole size={13} /> Competing lenders cannot inspect each other&apos;s bids (CrossReadDenied 6013). Winner selected by lowest valid penalty.</p>
       </section>
-
-      {/* ─── REAL-TIME MEV ATTACK INTERCEPTOR TERMINAL ─── */}
       <aside className="event-stack">
         <div className="stack-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>MEV ATTACK DEFENSE CONSOLE</span>
-          <button
-            className="subtle-button"
-            style={{
-              minHeight: '26px',
-              padding: '0 8px',
-              fontSize: '9px',
-              display: 'inline-flex',
-              gap: '4px',
-              alignItems: 'center',
-            }}
-            onClick={onProbeMev}
-            disabled={isProbingMev}
-          >
-            <Zap size={11} /> {isProbingMev ? 'PROBING RPC...' : engineMode === 'live' ? 'PROBE MEV ATTACK [LIVE RPC]' : 'PROBE MEV ATTACK'}
+          <button className="subtle-button" style={{ minHeight: '26px', padding: '0 8px', fontSize: '9px', display: 'inline-flex', gap: '4px', alignItems: 'center' }} onClick={onProbeMev} disabled={isProbingMev}>
+            <Zap size={11} /> {isProbingMev ? 'PROBING RPC...' : 'PROBE MEV ATTACK [LIVE RPC]'}
           </button>
         </div>
-
         <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'grid', gap: '8px', marginTop: '12px' }}>
           {mevLogs.map((log) => (
-            <div
-              key={log.id}
-              className="blocked-event"
-              style={{
-                borderColor: log.status === 'BLOCKED' ? '#68363d' : '#273344',
-                background: log.status === 'BLOCKED' ? '#171115' : '#10141b',
-              }}
-            >
-              <div className="event-icon">
-                {log.status === 'BLOCKED' ? <ShieldAlert size={16} /> : <Terminal size={16} />}
-              </div>
+            <div key={log.id} className="blocked-event" style={{ borderColor: log.status === 'BLOCKED' ? '#68363d' : '#273344', background: log.status === 'BLOCKED' ? '#171115' : '#10141b' }}>
+              <div className="event-icon">{log.status === 'BLOCKED' ? <ShieldAlert size={16} /> : <Terminal size={16} />}</div>
               <div>
                 <span>[{log.timestamp}] {log.actor}</span>
                 <b style={{ color: log.status === 'BLOCKED' ? '#eb747a' : '#c3cad4' }}>{log.action}</b>
@@ -1075,7 +812,6 @@ function InterventionZone({
             </div>
           ))}
         </div>
-
         <div className="fallback-mini">
           <span>FAIL-OPEN GUARANTEE</span>
           <p>Auction &rarr; Winner &rarr; Runner-up &rarr; Hard Cutoff (60s) &rarr; Public Liquidation fallback.</p>
@@ -1085,117 +821,52 @@ function InterventionZone({
   )
 }
 
-function MatchedState({
-  telemetry,
-  onSettle,
-}: {
-  telemetry: PositionTelemetry
-  onSettle: () => void
-}) {
+function MatchedState({ telemetry, onSettle }: { telemetry: PositionTelemetry; onSettle: () => void }) {
   const savedUsd = (telemetry.debtUsd * 0.055).toFixed(2)
-
   return (
     <div className="demo-state outcome-layout">
       <section className="matched-panel panel">
-        <div className="eyebrow success-eyebrow">
-          <Check size={15} /> COMPETITIVE REVERSE AUCTION MATCHED
-        </div>
-        <h3>
-          Winner crowned.<br />
-          <em>Borrower equity saved.</em>
-        </h3>
+        <div className="eyebrow success-eyebrow"><Check size={15} /> COMPETITIVE REVERSE AUCTION MATCHED</div>
+        <h3>Winner crowned.<br /><em>Borrower equity saved.</em></h3>
         <div className="winner-row">
-          <div>
-            <span>WINNING PENALTY</span>
-            <strong>2.50% (250 bps)</strong>
-          </div>
-          <div>
-            <span>RESCUER</span>
-            <strong>2mP4...8vLk (Rescuer B)</strong>
-          </div>
-          <div>
-            <span>SURPLUS SAVED</span>
-            <strong style={{ color: 'var(--green)' }}>+${savedUsd} (+5.50%)</strong>
-          </div>
+          <div><span>WINNING PENALTY</span><strong>2.50% (250 bps)</strong></div>
+          <div><span>RESCUER</span><strong>2mP4...8vLk (Rescuer B)</strong></div>
+          <div><span>SURPLUS SAVED</span><strong style={{ color: 'var(--green)' }}>+${savedUsd} (+5.50%)</strong></div>
         </div>
-        <button className="settle-button" onClick={onSettle}>
-          COMMIT SETTLEMENT &amp; RESCUERECORD TO SOLANA L1 <ArrowRight size={16} />
-        </button>
+        <button className="settle-button" onClick={onSettle}>COMMIT SETTLEMENT &amp; RESCUERECORD TO SOLANA L1 <ArrowRight size={16} /></button>
       </section>
-
       <aside className="compare-tease">
         <span>THE PENALTY GAP</span>
-        <div>
-          <b>8.00%</b>
-          <small>PUBLIC EXTRACTED</small>
-        </div>
+        <div><b>8.00%</b><small>PUBLIC EXTRACTED</small></div>
         <ChevronRight />
-        <div className="teal-text">
-          <b>2.50%</b>
-          <small>RESCUE PROTECTED</small>
-        </div>
+        <div className="teal-text"><b>2.50%</b><small>RESCUE PROTECTED</small></div>
       </aside>
     </div>
   )
 }
 
-function SettledState({
-  telemetry,
-  activeIncident,
-  onRecord,
-  onReset,
-}: {
-  telemetry: PositionTelemetry
-  activeIncident: string
-  onRecord: () => void
-  onReset: () => void
+function SettledState({ telemetry, activeIncident, onRecord, onReset }: {
+  telemetry: PositionTelemetry; activeIncident: string; onRecord: () => void; onReset: () => void
 }) {
   const publicFee = (telemetry.debtUsd * 0.08).toFixed(2)
   const rescueFee = (telemetry.debtUsd * 0.025).toFixed(2)
   const savedUsd = (telemetry.debtUsd * 0.055).toFixed(2)
-
   return (
     <div className="demo-state settled-layout">
       <section className="settlement-hero">
-        <div className="eyebrow cyan-eyebrow">
-          <Check size={15} /> SETTLEMENT VERIFIED &middot; RESCUERECORD COMMITTED
-        </div>
-        <h3>
-          +${savedUsd} BORROWER<br />
-          <em>EQUITY RETAINED</em>
-        </h3>
-        <p>
-          The position was rescued at 2.50% penalty instead of the standard 8.00% public liquidation fee. The cryptographic outcome is permanent, portable, and verifiable on Solana L1.
-        </p>
+        <div className="eyebrow cyan-eyebrow"><Check size={15} /> SETTLEMENT VERIFIED &middot; RESCUERECORD COMMITTED</div>
+        <h3>+${savedUsd} BORROWER<br /><em>EQUITY RETAINED</em></h3>
+        <p>The position was rescued at 2.50% penalty instead of the standard 8.00% public liquidation fee. The cryptographic outcome is permanent, portable, and verifiable on Solana L1.</p>
         <div className="settlement-buttons">
-          <button className="record-button" onClick={onRecord}>
-            <FileCheck2 size={16} /> VIEW RESCUERECORD PDA
-          </button>
-          <button className="subtle-button" onClick={onReset}>
-            RUN ANOTHER INCIDENT
-          </button>
+          <button className="record-button" onClick={onRecord}><FileCheck2 size={16} /> VIEW RESCUERECORD PDA</button>
+          <button className="subtle-button" onClick={onReset}>RUN ANOTHER INCIDENT</button>
         </div>
       </section>
-
       <section className="comparison">
-        <div className="comparison-head">
-          <span>SETTLEMENT COMPARISON</span>
-          <small>INCIDENT {activeIncident}</small>
-        </div>
-        <div className="comparison-row public">
-          <span>PUBLIC LIQUIDATION (8.00%)</span>
-          <strong>-${publicFee}</strong>
-          <small>Equity Lost</small>
-        </div>
-        <div className="comparison-row rescue">
-          <span>RESCUE WINNING BID (2.50%)</span>
-          <strong>-${rescueFee}</strong>
-          <small>Fee Incurred</small>
-        </div>
-        <div className="saved-row">
-          <span>BORROWER SURPLUS SAVED</span>
-          <strong>+${savedUsd} (+5.50%)</strong>
-        </div>
+        <div className="comparison-head"><span>SETTLEMENT COMPARISON</span><small>INCIDENT {activeIncident}</small></div>
+        <div className="comparison-row public"><span>PUBLIC LIQUIDATION (8.00%)</span><strong>-${publicFee}</strong><small>Equity Lost</small></div>
+        <div className="comparison-row rescue"><span>RESCUE WINNING BID (2.50%)</span><strong>-${rescueFee}</strong><small>Fee Incurred</small></div>
+        <div className="saved-row"><span>BORROWER SURPLUS SAVED</span><strong>+${savedUsd} (+5.50%)</strong></div>
       </section>
     </div>
   )
@@ -1209,72 +880,39 @@ function FallbackState({ onReset }: { onReset: () => void }) {
         <div>
           <div className="eyebrow danger-eyebrow">HARD CUTOFF REACHED</div>
           <h3>Rescue window expired.</h3>
-          <p>
-            No valid winner was matched before the 60-second confidential auction closed. The system has safely failed open to standard public liquidation.
-          </p>
+          <p>No valid winner was matched before the 60-second confidential auction closed. The system has safely failed open to standard public liquidation.</p>
         </div>
       </div>
       <div className="fallback-path">
-        <div className="path-done">AUCTION <Check /></div>
-        <ChevronRight />
-        <div className="path-done">WINNER <Check /></div>
-        <ChevronRight />
-        <div className="path-now">HARD CUTOFF <Clock3 /></div>
-        <ChevronRight />
+        <div className="path-done">AUCTION <Check /></div><ChevronRight />
+        <div className="path-done">WINNER <Check /></div><ChevronRight />
+        <div className="path-now">HARD CUTOFF <Clock3 /></div><ChevronRight />
         <div className="path-end">PUBLIC LIQUIDATION</div>
       </div>
-      <button className="subtle-button" onClick={onReset}>
-        RESET INCIDENT
-      </button>
+      <button className="subtle-button" onClick={onReset}>RESET INCIDENT</button>
     </div>
   )
 }
 
-function RescueRecord({
-  copied,
-  incidentId,
-  telemetry,
-  onCopy,
-  onClose,
-}: {
-  copied: boolean
-  incidentId: string
-  telemetry: PositionTelemetry
-  onCopy: () => void
-  onClose: () => void
+function RescueRecord({ copied, incidentId, telemetry, onCopy, onClose }: {
+  copied: boolean; incidentId: string; telemetry: PositionTelemetry; onCopy: () => void; onClose: () => void
 }) {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const savedUsd = (telemetry.debtUsd * 0.055).toFixed(2)
-
   useEffect(() => {
     closeButtonRef.current?.focus()
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
-
   return (
-    <div
-      className="modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="record-title"
-      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
-    >
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="record-title" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="record-modal">
-        <button ref={closeButtonRef} className="close-button" onClick={onClose} aria-label="Close RescueRecord">
-          <X size={18} />
-        </button>
-        <div className="record-seal">
-          <FileCheck2 size={23} />
-        </div>
+        <button ref={closeButtonRef} className="close-button" onClick={onClose} aria-label="Close RescueRecord"><X size={18} /></button>
+        <div className="record-seal"><FileCheck2 size={23} /></div>
         <div className="eyebrow cyan-eyebrow">VERIFIABLE IMMUTABLE PDA</div>
         <h3 id="record-title">{incidentId}</h3>
-        <p className="record-copy">
-          Cryptographic receipt of intervention, reverse auction matching, and L1 settlement.
-        </p>
+        <p className="record-copy">Cryptographic receipt of intervention, reverse auction matching, and L1 settlement.</p>
         <div className="record-list">
           <RecordRow label="RESCUERECORD PDA" value={KNOWN_PDAS.RESCUE_RECORD_0427.slice(0, 18) + '...'} green />
           <RecordRow label="PROGRAM ID" value={PROTOCOL_CONSTANTS.PROGRAM_ID.slice(0, 14) + '...'} />
@@ -1296,9 +934,7 @@ function Contrast({ label, items, tone }: { label: string; items: string[]; tone
   return (
     <div className={`contrast-card ${tone}`}>
       <span>{label}</span>
-      {items.map((item) => (
-        <p key={item}><i />{item}</p>
-      ))}
+      {items.map((item) => (<p key={item}><i />{item}</p>))}
     </div>
   )
 }
@@ -1306,37 +942,25 @@ function Contrast({ label, items, tone }: { label: string; items: string[]; tone
 function ArchitectureStep({ number, title, copy, active }: { number: string; title: string; copy: string; active?: boolean }) {
   return (
     <div className={`architecture-step ${active ? 'active' : ''}`}>
-      <span>{number}</span>
-      <strong>{title}</strong>
-      <p>{copy}</p>
+      <span>{number}</span><strong>{title}</strong><p>{copy}</p>
     </div>
   )
 }
 
 function SealStatus({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent?: string }) {
   return (
-    <div className={`seal-status ${accent || ''}`}>
-      {icon}
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
+    <div className={`seal-status ${accent || ''}`}>{icon}<span>{label}</span><strong>{value}</strong></div>
   )
 }
 
 function RecordRow({ label, value, green }: { label: string; value: string; green?: boolean }) {
   return (
-    <div className="record-row">
-      <span>{label}</span>
-      <strong className={green ? 'green-text' : ''}>{value}</strong>
-    </div>
+    <div className="record-row"><span>{label}</span><strong className={green ? 'green-text' : ''}>{value}</strong></div>
   )
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="metric">
-      <span>{label}</span>
-      <strong className={tone ? `${tone}-text` : ''}>{value}</strong>
-    </div>
+    <div className="metric"><span>{label}</span><strong className={tone ? `${tone}-text` : ''}>{value}</strong></div>
   )
 }
