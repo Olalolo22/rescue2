@@ -27,18 +27,23 @@ import { WalletButton } from '@/components/WalletButton'
 import { useSolanaWallet } from '@/lib/wallet/WalletContext'
 import { PROTOCOL_CONSTANTS } from '@/lib/protocol/constants'
 import { KNOWN_PDAS } from '@/lib/protocol/pda'
-import { 
-  MevInterceptLog, 
-  PositionTelemetry, 
-  ProtocolState, 
-  SealedBid 
+import {
+  MevInterceptLog,
+  PositionTelemetry,
+  ProtocolState,
+  SealedBid,
 } from '@/lib/protocol/types'
-import { 
-  INITIAL_TELEMETRY, 
-  INITIAL_BIDS, 
-  INITIAL_MEV_LOGS, 
-  generateMevAttackProbeLogs, 
-  generateRescueRecordReceipt 
+import {
+  INITIAL_TELEMETRY,
+  INITIAL_BIDS,
+  INITIAL_MEV_LOGS,
+  generateMevAttackProbeLogs,
+  generateRescueRecordReceipt,
+  fetchLiveTelemetryApi,
+  executeMevProbeApi,
+  executeE2ELifecycleApi,
+  executeVerifySuiteApi,
+  VerifySuiteResponse,
 } from '@/lib/protocol/engine'
 
 type Phase = 'healthy' | 'at-risk' | 'intervention' | 'matched' | 'settled' | 'fallback'
@@ -56,13 +61,48 @@ export default function Page() {
   const [phase, setPhase] = useState<Phase>('healthy')
   const [seconds, setSeconds] = useState(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
   const [recordOpen, setRecordOpen] = useState(false)
-  
+
+  // Backend connection and engine state
+  const [engineMode, setEngineMode] = useState<'live' | 'demo'>('live')
+  const [liveSlot, setLiveSlot] = useState<number>(284719445)
+  const [networkLatency, setNetworkLatency] = useState<number>(14)
+  const [backendStatus, setBackendStatus] = useState<'CONNECTED' | 'LOCAL'>('CONNECTED')
+  const [isRunningE2e, setIsRunningE2e] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [verifyResult, setVerifyResult] = useState<VerifySuiteResponse | null>(null)
+
   // Reactive telemetry state
   const [telemetry, setTelemetry] = useState<PositionTelemetry>(INITIAL_TELEMETRY)
   const [bids, setBids] = useState<SealedBid[]>(INITIAL_BIDS)
   const [mevLogs, setMevLogs] = useState<MevInterceptLog[]>(INITIAL_MEV_LOGS)
   const [isProbingMev, setIsProbingMev] = useState(false)
   const [copiedPda, setCopiedPda] = useState(false)
+
+  // Poll live Solana Devnet telemetry via backend API
+  useEffect(() => {
+    let mounted = true
+    async function updateTelemetry() {
+      const data = await fetchLiveTelemetryApi()
+      if (!mounted || !data) return
+      setLiveSlot(data.slot)
+      setNetworkLatency(data.latencyMs)
+      setBackendStatus('CONNECTED')
+      if (data.pythSolPriceUsd && phase === 'healthy') {
+        setTelemetry((prev) => ({
+          ...prev,
+          solPriceUsd: data.pythSolPriceUsd,
+          collateralUsd: prev.collateralSol * data.pythSolPriceUsd,
+        }))
+      }
+    }
+
+    updateTelemetry()
+    const interval = setInterval(updateTelemetry, 15000)
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
+  }, [phase])
 
   // 60-second reverse auction timer
   useEffect(() => {
@@ -87,6 +127,7 @@ export default function Page() {
     setTelemetry(INITIAL_TELEMETRY)
     setMevLogs(INITIAL_MEV_LOGS)
     setIsProbingMev(false)
+    setIsRunningE2e(false)
   }
 
   const beginRisk = () => {
@@ -106,7 +147,6 @@ export default function Page() {
     setPhase('intervention')
     setSeconds(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
     setTelemetry((prev) => ({ ...prev, state: 'IN_INTERVENTION_ZONE' }))
-    // Add delegation log
     setMevLogs((prev) => [
       ...prev,
       {
@@ -120,13 +160,86 @@ export default function Page() {
     ])
   }
 
-  const handleMevAttackProbe = () => {
+  const handleMevAttackProbe = async () => {
     setIsProbingMev(true)
+
+    if (engineMode === 'live') {
+      const res = await executeMevProbeApi()
+      if (res && res.logs && res.logs.length) {
+        setLiveSlot(res.slot)
+        setMevLogs((prev) => [...prev, ...res.logs])
+        setIsProbingMev(false)
+        return
+      }
+    }
+
+    // Client demo fallback
     const newLogs = generateMevAttackProbeLogs()
     setTimeout(() => {
       setMevLogs((prev) => [...prev, ...newLogs])
       setIsProbingMev(false)
-    }, 600)
+    }, 450)
+  }
+
+  const handleRunE2E = async () => {
+    if (isRunningE2e) return
+    setIsRunningE2e(true)
+    document.getElementById('simulator')?.scrollIntoView({ behavior: 'smooth' })
+
+    const res = await executeE2ELifecycleApi()
+
+    // Step 1: Trip position into at-risk
+    setPhase('at-risk')
+    setTelemetry((prev) => ({
+      ...prev,
+      solPriceUsd: PROTOCOL_CONSTANTS.CRASH_SOL_PRICE,
+      collateralUsd: prev.collateralSol * PROTOCOL_CONSTANTS.CRASH_SOL_PRICE,
+      healthFactor: 0.88,
+      state: 'AT_RISK',
+    }))
+
+    await new Promise((r) => setTimeout(r, 900))
+
+    // Step 2: Delegate to MagicBlock TEE
+    setPhase('intervention')
+    setSeconds(59)
+    setTelemetry((prev) => ({ ...prev, state: 'IN_INTERVENTION_ZONE' }))
+
+    if (res && res.steps) {
+      setLiveSlot(res.executionSlot)
+      const e2eLogs: MevInterceptLog[] = res.steps.slice(3, 6).map((s) => ({
+        id: `e2e-${s.step}-${Date.now()}`,
+        timestamp: s.timestamp,
+        actor: 'Protocol Runner',
+        action: s.title,
+        status: s.step === 5 ? 'BLOCKED' : 'SYSTEM',
+        details: s.details,
+      }))
+      setMevLogs((prev) => [...prev, ...e2eLogs])
+    }
+
+    await new Promise((r) => setTimeout(r, 1400))
+
+    // Step 3: Match winner in TEE
+    setPhase('matched')
+    setTelemetry((prev) => ({ ...prev, state: 'MATCHED' }))
+
+    await new Promise((r) => setTimeout(r, 1100))
+
+    // Step 4: Settle and anchor RescueRecord to L1
+    setPhase('settled')
+    setTelemetry((prev) => ({ ...prev, state: 'SETTLED', healthFactor: 1.2 }))
+    setIsRunningE2e(false)
+  }
+
+  const handleRunVerifySuite = async () => {
+    setIsVerifying(true)
+    const res = await executeVerifySuiteApi()
+    if (res) {
+      setVerifyResult(res)
+      setLiveSlot(res.slot)
+    }
+    setIsVerifying(false)
   }
 
   return (
@@ -151,13 +264,48 @@ export default function Page() {
         </div>
       </header>
 
-      {/* ─── LIVE TELEMETRY STRIP ─── */}
+      {/* ─── LIVE TELEMETRY & BACKEND ENGINE STRIP ─── */}
       <div className="protocol-strip" aria-label="Protocol telemetry">
-        <span><i className="telemetry-dot" /> LIVE NETWORK</span>
-        <span>PROGRAM: <b>{PROTOCOL_CONSTANTS.PROGRAM_ID.slice(0, 8)}...{PROTOCOL_CONSTANTS.PROGRAM_ID.slice(-6)}</b></span>
-        <span>MAGICBLOCK TEE: <b>ACTIVE</b></span>
+        <span><i className="telemetry-dot" /> DEVNET RPC</span>
+        <span>SLOT: <b>{liveSlot.toLocaleString()}</b></span>
+        <span>BACKEND ENGINE: <b>{engineMode === 'live' ? 'API + SOLANA DEVNET' : 'LOCAL SIMULATOR'}</b></span>
+        <span>LATENCY: <b>{networkLatency}ms</b></span>
         <span>PYTH SOL/USD: <b>${telemetry.solPriceUsd.toFixed(2)}</b></span>
-        <span className="strip-right">LATENCY <b>14ms</b> · HF: <b>{telemetry.healthFactor.toFixed(2)}</b></span>
+        <div className="strip-right" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ color: '#8fa89e', fontSize: '9px' }}>ENGINE MODE:</span>
+          <button
+            type="button"
+            onClick={() => setEngineMode('live')}
+            style={{
+              padding: '2px 8px',
+              fontSize: '9px',
+              fontFamily: 'var(--font-data)',
+              borderRadius: '3px',
+              border: engineMode === 'live' ? '1px solid var(--green)' : '1px solid #29313b',
+              background: engineMode === 'live' ? 'rgba(0, 245, 160, 0.12)' : 'transparent',
+              color: engineMode === 'live' ? 'var(--green)' : '#697482',
+              cursor: 'pointer',
+            }}
+          >
+            [LIVE BACKEND]
+          </button>
+          <button
+            type="button"
+            onClick={() => setEngineMode('demo')}
+            style={{
+              padding: '2px 8px',
+              fontSize: '9px',
+              fontFamily: 'var(--font-data)',
+              borderRadius: '3px',
+              border: engineMode === 'demo' ? '1px solid #a855f7' : '1px solid #29313b',
+              background: engineMode === 'demo' ? 'rgba(168, 85, 247, 0.12)' : 'transparent',
+              color: engineMode === 'demo' ? '#c084fc' : '#697482',
+              cursor: 'pointer',
+            }}
+          >
+            [DEMO MODE]
+          </button>
+        </div>
       </div>
 
       {/* ─── HERO SECTION ─── */}
@@ -198,15 +346,15 @@ export default function Page() {
           </div>
           <div className="visual-metrics">
             <Metric label="SOL PRICE" value={`$${telemetry.solPriceUsd.toFixed(2)}`} />
-            <Metric 
-              label="HEALTH FACTOR" 
-              value={telemetry.healthFactor.toFixed(2)} 
-              tone={telemetry.healthFactor >= 1.2 ? 'green' : telemetry.healthFactor < 1.0 ? 'danger' : 'amber'} 
+            <Metric
+              label="HEALTH FACTOR"
+              value={telemetry.healthFactor.toFixed(2)}
+              tone={telemetry.healthFactor >= 1.2 ? 'green' : telemetry.healthFactor < 1.0 ? 'danger' : 'amber'}
             />
-            <Metric 
-              label="STATUS" 
-              value={telemetry.state} 
-              tone={telemetry.state === 'HEALTHY' ? 'green' : 'danger'} 
+            <Metric
+              label="STATUS"
+              value={telemetry.state}
+              tone={telemetry.state === 'HEALTHY' ? 'green' : 'danger'}
             />
           </div>
           <div className="visual-route">
@@ -233,16 +381,16 @@ export default function Page() {
           </div>
         </div>
         <div className="contrast-row">
-          <Contrast 
-            label="PUBLIC LIQUIDATION" 
-            items={['Public searcher priority gas race', 'MEV bots seize 8.00% penalty ($72.00 lost)', 'Borrower equity cannibalized']} 
-            tone="danger" 
+          <Contrast
+            label="PUBLIC LIQUIDATION"
+            items={['Public searcher priority gas race', 'MEV bots seize 8.00% penalty ($72.00 lost)', 'Borrower equity cannibalized']}
+            tone="danger"
           />
           <div className="contrast-arrow"><ArrowRight /></div>
-          <Contrast 
-            label="RESCUE INTERVENTION" 
-            items={['Confidential 60s reverse auction', 'Liquidators bid penalty down to 2.50%', 'Borrower saves +$49.50 equity (+5.50%)']} 
-            tone="safe" 
+          <Contrast
+            label="RESCUE INTERVENTION"
+            items={['Confidential 60s reverse auction', 'Liquidators bid penalty down to 2.50%', 'Borrower saves +$49.50 equity (+5.50%)']}
+            tone="safe"
           />
         </div>
       </section>
@@ -271,10 +419,30 @@ export default function Page() {
             <h2>Trigger the emergency.</h2>
             <p>Watch a healthy position move through the exact lifecycle Rescue is built to protect.</p>
           </div>
-          <div className="incident-id" role="status" aria-live="polite">
-            <span>INCIDENT</span>
-            <strong>{PROTOCOL_CONSTANTS.INCIDENT_ID}</strong>
-            <small>{phase === 'healthy' ? 'AWAITING TRIGGER' : phase === 'fallback' ? 'FAIL-OPEN COMPLETE' : 'ACTIVE SIMULATION'}</small>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+            <div className="incident-id" role="status" aria-live="polite">
+              <span>INCIDENT</span>
+              <strong>{PROTOCOL_CONSTANTS.INCIDENT_ID}</strong>
+              <small>{phase === 'healthy' ? 'AWAITING TRIGGER' : phase === 'fallback' ? 'FAIL-OPEN COMPLETE' : 'ACTIVE SIMULATION'}</small>
+            </div>
+            <button
+              type="button"
+              className="subtle-button"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '10px',
+                padding: '5px 10px',
+                background: isRunningE2e ? 'rgba(0, 245, 160, 0.15)' : '#161c24',
+                borderColor: isRunningE2e ? 'var(--green)' : '#273344',
+                color: isRunningE2e ? 'var(--green)' : '#c3cad4',
+              }}
+              onClick={handleRunE2E}
+              disabled={isRunningE2e}
+            >
+              <Terminal size={12} /> {isRunningE2e ? 'RUNNING E2E ENGINE...' : 'RUN FULL PROTOCOL LIFECYCLE [E2E]'}
+            </button>
           </div>
         </div>
 
@@ -296,28 +464,29 @@ export default function Page() {
         {phase === 'healthy' && <HealthyState telemetry={telemetry} onCrash={beginRisk} borrowerKey={publicKey} connected={connected} />}
         {phase === 'at-risk' && <AtRiskState telemetry={telemetry} onRescue={startIntervention} borrowerKey={publicKey} connected={connected} />}
         {phase === 'intervention' && (
-          <InterventionZone 
-            seconds={seconds} 
+          <InterventionZone
+            seconds={seconds}
             bids={bids}
             mevLogs={mevLogs}
             isProbingMev={isProbingMev}
+            engineMode={engineMode}
             onProbeMev={handleMevAttackProbe}
             onMatch={() => {
               setPhase('matched')
               setTelemetry((prev) => ({ ...prev, state: 'MATCHED' }))
-            }} 
+            }}
             onExpire={() => {
               setPhase('fallback')
               setTelemetry((prev) => ({ ...prev, state: 'FAIL_OPEN_EXPIRED' }))
-            }} 
+            }}
           />
         )}
         {phase === 'matched' && (
-          <MatchedState 
+          <MatchedState
             onSettle={() => {
               setPhase('settled')
-              setTelemetry((prev) => ({ ...prev, state: 'SETTLED', healthFactor: 1.20 }))
-            }} 
+              setTelemetry((prev) => ({ ...prev, state: 'SETTLED', healthFactor: 1.2 }))
+            }}
           />
         )}
         {phase === 'settled' && (
@@ -326,7 +495,7 @@ export default function Page() {
         {phase === 'fallback' && <FallbackState onReset={reset} />}
       </section>
 
-      {/* ─── INVARIANTS SCORECARD ─── */}
+      {/* ─── INVARIANTS SCORECARD & LIVE VERIFICATION ─── */}
       <section className="proof-section" id="invariants">
         <div className="proof-copy">
           <div className="section-label">VERIFIED CORE INVARIANTS</div>
@@ -340,10 +509,40 @@ export default function Page() {
               </span>
             ))}
           </div>
-          <a className="text-link" href="#simulator" style={{ marginTop: '24px' }}>
-            RUN SIMULATION AGAIN <ArrowRight size={14} />
-          </a>
+
+          <div style={{ marginTop: '24px', display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="primary-button"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '38px', padding: '0 18px', fontSize: '11px' }}
+              onClick={handleRunVerifySuite}
+              disabled={isVerifying}
+            >
+              <ShieldCheck size={15} /> {isVerifying ? 'VERIFYING PROBES ON DEVNET...' : 'RUN LIVE VERIFICATION HARNESS [7 PROBES]'}
+            </button>
+            <a className="text-link" href="#simulator">
+              RUN SIMULATION AGAIN <ArrowRight size={14} />
+            </a>
+          </div>
+
+          {verifyResult && (
+            <div style={{ marginTop: '22px', border: '1px solid #273344', borderRadius: '4px', background: '#0e1218', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e2634', paddingBottom: '8px', fontSize: '11px', fontFamily: 'var(--font-data)' }}>
+                <span style={{ color: 'var(--green)' }}>[PASS] {verifyResult.invariantsCount}</span>
+                <span style={{ color: '#8fa89e' }}>DEVNET SLOT: {verifyResult.slot} · {verifyResult.latencyMs}ms</span>
+              </div>
+              <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
+                {verifyResult.probes.map((p) => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '11px', borderBottom: '1px solid #161c24', paddingBottom: '6px' }}>
+                    <span style={{ color: '#c3cad4' }}><b>{p.id}:</b> {p.name}</span>
+                    <span style={{ color: 'var(--green)', fontFamily: 'var(--font-data)', whiteSpace: 'nowrap' }}>[{p.status}]</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+
         <div className="proof-stat">
           <span>SURPLUS SAVED</span>
           <strong>+5.50%</strong>
@@ -369,14 +568,14 @@ export default function Page() {
 
       {/* ─── RESCUERECORD PDA MODAL ─── */}
       {recordOpen && (
-        <RescueRecord 
+        <RescueRecord
           copied={copiedPda}
           onCopy={() => {
             navigator.clipboard?.writeText(KNOWN_PDAS.RESCUE_RECORD_0427)
             setCopiedPda(true)
             setTimeout(() => setCopiedPda(false), 2000)
           }}
-          onClose={() => setRecordOpen(false)} 
+          onClose={() => setRecordOpen(false)}
         />
       )}
     </main>
@@ -387,8 +586,18 @@ export default function Page() {
    State Sub-Components
    ───────────────────────────────────────────────────────────────────────────── */
 
-function HealthyState({ telemetry, onCrash, borrowerKey, connected }: { telemetry: PositionTelemetry; onCrash: () => void; borrowerKey?: string | null; connected?: boolean }) {
-  const displayKey = borrowerKey ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}` : '7xK4...9e2';
+function HealthyState({
+  telemetry,
+  onCrash,
+  borrowerKey,
+  connected,
+}: {
+  telemetry: PositionTelemetry
+  onCrash: () => void
+  borrowerKey?: string | null
+  connected?: boolean
+}) {
+  const displayKey = borrowerKey ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}` : '7xK4...9e2'
   return (
     <div className="demo-state quiet-layout">
       <section className="position-card panel">
@@ -429,7 +638,17 @@ function HealthyState({ telemetry, onCrash, borrowerKey, connected }: { telemetr
   )
 }
 
-function AtRiskState({ telemetry, onRescue }: { telemetry: PositionTelemetry; onRescue: () => void }) {
+function AtRiskState({
+  telemetry,
+  onRescue,
+  borrowerKey,
+  connected,
+}: {
+  telemetry: PositionTelemetry
+  onRescue: () => void
+  borrowerKey?: string | null
+  connected?: boolean
+}) {
   return (
     <div className="demo-state risk-layout">
       <section className="crash-panel">
@@ -479,6 +698,7 @@ function InterventionZone({
   bids,
   mevLogs,
   isProbingMev,
+  engineMode,
   onProbeMev,
   onMatch,
   onExpire,
@@ -487,6 +707,7 @@ function InterventionZone({
   bids: SealedBid[]
   mevLogs: MevInterceptLog[]
   isProbingMev: boolean
+  engineMode: 'live' | 'demo'
   onProbeMev: () => void
   onMatch: () => void
   onExpire: () => void
@@ -545,19 +766,33 @@ function InterventionZone({
       <aside className="event-stack">
         <div className="stack-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>MEV ATTACK DEFENSE CONSOLE</span>
-          <button 
-            className="subtle-button" 
-            style={{ minHeight: '26px', padding: '0 8px', fontSize: '9px', display: 'inline-flex', gap: '4px', alignItems: 'center' }} 
+          <button
+            className="subtle-button"
+            style={{
+              minHeight: '26px',
+              padding: '0 8px',
+              fontSize: '9px',
+              display: 'inline-flex',
+              gap: '4px',
+              alignItems: 'center',
+            }}
             onClick={onProbeMev}
             disabled={isProbingMev}
           >
-            <Zap size={11} /> {isProbingMev ? 'PROBING...' : 'PROBE MEV ATTACK'}
+            <Zap size={11} /> {isProbingMev ? 'PROBING RPC...' : engineMode === 'live' ? 'PROBE MEV ATTACK [LIVE RPC]' : 'PROBE MEV ATTACK'}
           </button>
         </div>
 
         <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'grid', gap: '8px', marginTop: '12px' }}>
           {mevLogs.map((log) => (
-            <div key={log.id} className="blocked-event" style={{ borderColor: log.status === 'BLOCKED' ? '#68363d' : '#273344', background: log.status === 'BLOCKED' ? '#171115' : '#10141b' }}>
+            <div
+              key={log.id}
+              className="blocked-event"
+              style={{
+                borderColor: log.status === 'BLOCKED' ? '#68363d' : '#273344',
+                background: log.status === 'BLOCKED' ? '#171115' : '#10141b',
+              }}
+            >
               <div className="event-icon">
                 {log.status === 'BLOCKED' ? <ShieldAlert size={16} /> : <Terminal size={16} />}
               </div>
@@ -715,11 +950,11 @@ function RescueRecord({ copied, onCopy, onClose }: { copied: boolean; onCopy: ()
   }, [onClose])
 
   return (
-    <div 
-      className="modal-backdrop" 
-      role="dialog" 
-      aria-modal="true" 
-      aria-labelledby="record-title" 
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="record-title"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
     >
       <div className="record-modal">
@@ -741,7 +976,7 @@ function RescueRecord({ copied, onCopy, onClose }: { copied: boolean; onCopy: ()
           <RecordRow label="WINNING PENALTY" value="2.50% (250 bps)" green />
           <RecordRow label="PUBLIC PENALTY" value="8.00% (800 bps)" />
           <RecordRow label="SURPLUS SAVED" value="+$49.50 (+5.50%)" green />
-          <RecordRow label="INVARIANTS" value="I₁ · I₆ · I₁₀ VERIFIED" green />
+          <RecordRow label="INVARIANTS" value="I1 · I6 · I10 VERIFIED" green />
         </div>
         <button className="record-button full-button" onClick={onCopy}>
           <Copy size={15} /> {copied ? 'COPIED PDA TO CLIPBOARD!' : 'COPY RESCUERECORD PDA'}
