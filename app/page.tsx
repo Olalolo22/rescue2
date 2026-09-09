@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 
 import { WalletButton } from '@/components/WalletButton'
+import { useSolanaWallet } from '@/lib/wallet/WalletContext'
 import { PROTOCOL_CONSTANTS } from '@/lib/protocol/constants'
 import { KNOWN_PDAS } from '@/lib/protocol/pda'
 import { 
@@ -51,6 +52,7 @@ const phases: { id: Phase; label: string }[] = [
 ]
 
 export default function Page() {
+  const { publicKey, connected } = useSolanaWallet()
   const [phase, setPhase] = useState<Phase>('healthy')
   const [seconds, setSeconds] = useState(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
   const [recordOpen, setRecordOpen] = useState(false)
@@ -291,8 +293,8 @@ export default function Page() {
         </div>
 
         {/* State Views */}
-        {phase === 'healthy' && <HealthyState telemetry={telemetry} onCrash={beginRisk} />}
-        {phase === 'at-risk' && <AtRiskState telemetry={telemetry} onRescue={startIntervention} />}
+        {phase === 'healthy' && <HealthyState telemetry={telemetry} onCrash={beginRisk} borrowerKey={publicKey} connected={connected} />}
+        {phase === 'at-risk' && <AtRiskState telemetry={telemetry} onRescue={startIntervention} borrowerKey={publicKey} connected={connected} />}
         {phase === 'intervention' && (
           <InterventionZone 
             seconds={seconds} 
@@ -385,12 +387,17 @@ export default function Page() {
    State Sub-Components
    ───────────────────────────────────────────────────────────────────────────── */
 
-function HealthyState({ telemetry, onCrash }: { telemetry: PositionTelemetry; onCrash: () => void }) {
+function HealthyState({ telemetry, onCrash, borrowerKey, connected }: { telemetry: PositionTelemetry; onCrash: () => void; borrowerKey?: string | null; connected?: boolean }) {
+  const displayKey = borrowerKey ? `${borrowerKey.slice(0, 4)}...${borrowerKey.slice(-4)}` : '7xK4...9e2';
   return (
     <div className="demo-state quiet-layout">
       <section className="position-card panel">
         <div className="panel-kicker">
           <ShieldCheck size={16} /> MONITORED POSITION <span className="safe-tag">HEALTHY</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0 10px', fontSize: '11px', fontFamily: 'var(--font-data)' }}>
+          <span>BORROWER: <b style={{ color: '#e3e7ed' }}>{displayKey}</b></span>
+          <small style={{ color: connected ? 'var(--green)' : '#8fa89e' }}>{connected ? '● DEVNET CONNECTED' : 'PILOT WATCH'}</small>
         </div>
         <div className="position-value">${telemetry.collateralUsd.toFixed(2)}</div>
         <div className="position-sub">{telemetry.collateralSol} SOL collateralized debt position</div>

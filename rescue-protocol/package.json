@@ -1,0 +1,25 @@
+{
+  "name": "rescue-protocol",
+  "version": "0.1.0",
+  "scripts": {
+    "e2e": "tsx scripts/run-e2e.ts",
+    "mev:attack": "tsx scripts/mev-attacker.ts",
+    "keeper": "tsx scripts/keeper.ts",
+    "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@magicblock-labs/ephemeral-rollups-sdk": "^0.16.2",
+    "@solana/web3.js": "^1.95.3",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.0",
+    "@types/node": "^24.3.0",
+    "tsx": "^4.22.0",
+    "typescript": "^5.8.3",
+    "prettier": "^2.6.2"
+  }
+}
