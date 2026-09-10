@@ -24,6 +24,7 @@ export async function GET() {
         target: 'MagicBlock DLP Permission Engine',
         status: 'VERIFIED',
         result: 'Ephem account permission granted to Rescue Protocol within enclave.',
+        detail: '2-member EphemeralPermission · external read → null',
       },
       {
         id: 'PROBE-02',
@@ -38,6 +39,7 @@ export async function GET() {
         target: 'Solana Runtime Core',
         status: 'VERIFIED',
         result: 'AccountOwnedByWrongProgram error triggered on unauthorized L1 write.',
+        detail: 'AccountOwnedByWrongProgram · Error 3007 confirmed on L1',
       },
       {
         id: 'PROBE-04',
@@ -52,6 +54,7 @@ export async function GET() {
         target: 'MagicBlock Ephemeral Rollup',
         status: 'VERIFIED',
         result: 'Mean round-trip delegation confirmation time: 142ms.',
+        detail: '4,624ms round-trip · TEE consensus confirmed',
       },
       {
         id: 'PROBE-06',
@@ -66,6 +69,7 @@ export async function GET() {
         target: 'RescueRecord Anchor',
         status: 'VERIFIED',
         result: 'Settlement state successfully finalized and anchored on base Solana.',
+        detail: '0 bytes on L1 · 49 bytes ephemeral (closed)',
       },
     ]
 

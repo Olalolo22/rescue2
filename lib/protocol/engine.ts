@@ -143,6 +143,7 @@ export function generateRescueRecordReceipt(): RescueRecordReceipt {
 export interface LiveTelemetryResponse {
   success: boolean
   slot: number
+  teeSlot?: number
   health: string
   latencyMs: number
   programId: string
@@ -234,6 +235,7 @@ export interface VerifySuiteResponse {
     target: string
     status: string
     result: string
+    detail?: string
   }[]
   invariantsCount: string
   receiptPda: string

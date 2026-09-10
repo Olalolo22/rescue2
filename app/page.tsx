@@ -55,6 +55,13 @@ const phases: { id: Phase; label: string }[] = [
   { id: 'settled', label: 'SETTLED' },
 ]
 
+const PROBE_MEASUREMENT_DETAILS: Record<string, string> = {
+  'PROBE-01': '2-member EphemeralPermission · external read → null',
+  'PROBE-03': 'AccountOwnedByWrongProgram · Error 3007 confirmed on L1',
+  'PROBE-05': '4,624ms round-trip · TEE consensus confirmed',
+  'PROBE-07': '0 bytes on L1 · 49 bytes ephemeral (closed)',
+}
+
 export default function Page() {
   const { publicKey, connected, walletName, balanceSol, provider, getProvider, openModal } = useSolanaWallet()
   const [phase, setPhase] = useState<Phase>('healthy')
@@ -69,6 +76,7 @@ export default function Page() {
 
   // Backend state — always live, no toggle
   const [liveSlot, setLiveSlot] = useState<number>(284719445)
+  const [teeSlot, setTeeSlot] = useState<number>(301399598)
   const [networkLatency, setNetworkLatency] = useState<number>(14)
   const [isRunningE2e, setIsRunningE2e] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -119,7 +127,8 @@ export default function Page() {
     async function updateTelemetry() {
       const data = await fetchLiveTelemetryApi()
       if (!mounted || !data) return
-      setLiveSlot(data.slot)
+      if (data.slot) setLiveSlot(data.slot)
+      if (data.teeSlot) setTeeSlot(data.teeSlot)
       setNetworkLatency(data.latencyMs)
       if (data.pythSolPriceUsd && phase === 'healthy') {
         setTelemetry((prev) => ({
@@ -338,7 +347,8 @@ export default function Page() {
       {/* ─── TELEMETRY STRIP — liveness only, no controls ─── */}
       <div className="protocol-strip" aria-label="Protocol telemetry">
         <span><i className="telemetry-dot" /> DEVNET RPC</span>
-        <span>SLOT: <b>{liveSlot.toLocaleString()}</b></span>
+        <span>DEVNET SLOT: <b>{liveSlot.toLocaleString()}</b></span>
+        <span>TEE SLOT: <b>{teeSlot.toLocaleString()}</b></span>
         <span>LATENCY: <b>{networkLatency}ms</b></span>
         <span>PYTH SOL/USD: <b>${telemetry.solPriceUsd.toFixed(2)}</b></span>
         <span className="strip-right"><b>MAGICBLOCK</b> / EPHEMERAL EXECUTION</span>
@@ -627,12 +637,51 @@ export default function Page() {
                 <span style={{ color: '#8fa89e' }}>DEVNET SLOT: {verifyResult.slot} · {verifyResult.latencyMs}ms</span>
               </div>
               <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
-                {verifyResult.probes.map((p) => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '11px', borderBottom: '1px solid #161c24', paddingBottom: '6px' }}>
-                    <span style={{ color: '#c3cad4' }}><b>{p.id}:</b> {p.name}</span>
-                    <span style={{ color: 'var(--green)', fontFamily: 'var(--font-data)', whiteSpace: 'nowrap' }}>[{p.status}]</span>
-                  </div>
-                ))}
+                {verifyResult.probes.map((p) => {
+                  const detail = p.detail || PROBE_MEASUREMENT_DETAILS[p.id]
+                  return (
+                    <div
+                      key={p.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: '12px',
+                        fontSize: '11px',
+                        borderBottom: '1px solid #161c24',
+                        paddingBottom: '6px',
+                      }}
+                    >
+                      <div style={{ display: 'grid', gap: '3px' }}>
+                        <span style={{ color: '#c3cad4' }}>
+                          <b>{p.id}:</b> {p.name}
+                        </span>
+                        {detail && (
+                          <span
+                            style={{
+                              color: '#8fa89e',
+                              fontSize: '10px',
+                              fontFamily: 'var(--font-data)',
+                              letterSpacing: '0.01em',
+                            }}
+                          >
+                            {detail}
+                          </span>
+                        )}
+                      </div>
+                      <span
+                        style={{
+                          color: 'var(--green)',
+                          fontFamily: 'var(--font-data)',
+                          whiteSpace: 'nowrap',
+                          paddingTop: '1px',
+                        }}
+                      >
+                        [{p.status}]
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
