@@ -78,6 +78,7 @@ export default function Page() {
   const [liveSlot, setLiveSlot] = useState<number>(284719445)
   const [teeSlot, setTeeSlot] = useState<number>(301399598)
   const [networkLatency, setNetworkLatency] = useState<number>(14)
+  const [livePythPrice, setLivePythPrice] = useState<number>(101.51)
   const [isRunningE2e, setIsRunningE2e] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [verifyResult, setVerifyResult] = useState<VerifySuiteResponse | null>(null)
@@ -129,6 +130,7 @@ export default function Page() {
       if (!mounted || !data) return
       if (data.slot) setLiveSlot(data.slot)
       if (data.teeSlot) setTeeSlot(data.teeSlot)
+      if (data.pythSolPriceUsd) setLivePythPrice(data.pythSolPriceUsd)
       setNetworkLatency(data.latencyMs)
       if (data.pythSolPriceUsd && phase === 'healthy') {
         setTelemetry((prev) => ({
@@ -350,7 +352,7 @@ export default function Page() {
         <span>DEVNET SLOT: <b>{liveSlot.toLocaleString()}</b></span>
         <span>TEE SLOT: <b>{teeSlot.toLocaleString()}</b></span>
         <span>LATENCY: <b>{networkLatency}ms</b></span>
-        <span>PYTH SOL/USD: <b>${telemetry.solPriceUsd.toFixed(2)}</b></span>
+        <span>PYTH SOL/USD: <b>${livePythPrice.toFixed(2)}</b></span>
         <span className="strip-right"><b>MAGICBLOCK</b> / EPHEMERAL EXECUTION</span>
       </div>
 
