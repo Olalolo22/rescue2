@@ -759,10 +759,10 @@ function HealthyState({ telemetry, onCrash, borrowerKey, connected, balanceSol, 
         </div>
         <div style={{ marginTop: '30px' }}>
           <button className="primary-button trigger-button" onClick={onCrash} style={{ width: '100%' }}>
-            <Siren size={17} /> TRIGGER MARKET DOWNTURN (-18%) <ArrowRight size={16} />
+            <Siren size={17} /> TRIGGER SIMULATED MARKET DROP (-18%) <ArrowRight size={16} />
           </button>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', fontSize: '10px', fontFamily: 'var(--font-data)', color: '#707b89' }}>
-            <span>⚡ VOLATILITY STRESS TEST</span>
+            <span>SIMULATED EVENT FOR DEMO</span>
             <span>CRASHES ORACLE TO $82.00 → TRIPS HF TO 0.88</span>
           </div>
         </div>
