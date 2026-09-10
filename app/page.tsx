@@ -1084,7 +1084,7 @@ function RescueRecord({
           <RecordRow label="INVARIANTS" value="I1 · I6 · I10 VERIFIED" green />
         </div>
         
-        {txResult && (
+        {txResult ? (
           <a
             href={txResult.explorerUrl}
             target="_blank"
@@ -1093,6 +1093,16 @@ function RescueRecord({
             style={{ textDecoration: 'none', justifyContent: 'center', marginBottom: '10px' }}
           >
             <ExternalLink size={14} /> VIEW ON SOLANA EXPLORER (DEVNET)
+          </a>
+        ) : (
+          <a
+            href={`https://explorer.solana.com/tx/${PROTOCOL_CONSTANTS.CANONICAL_SETTLEMENT_TX}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            className="record-button full-button"
+            style={{ textDecoration: 'none', justifyContent: 'center', marginBottom: '10px' }}
+          >
+            <ExternalLink size={14} /> VIEW PROVEN DEVNET SETTLEMENT ON EXPLORER
           </a>
         )}
 
