@@ -16,3 +16,5 @@ node_modules
 target/
 .anchor/
 *.log
+AGENTS.md
+CLAUDE.md
