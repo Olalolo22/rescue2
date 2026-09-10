@@ -325,7 +325,7 @@ export default function Page() {
           <a href="#problem">THE PROBLEM</a>
           <a href="#mechanism">MECHANISM</a>
           <a href="#invariants">INVARIANTS</a>
-          <a href="#simulator">SIMULATE</a>
+          <a href="#simulator">CONSOLE</a>
         </nav>
         <div className="nav-right">
           <span className="network-status" title={`Program: ${PROTOCOL_CONSTANTS.PROGRAM_ID}`}>
@@ -361,7 +361,7 @@ export default function Page() {
           </p>
           <div className="hero-actions">
             <button className="primary-button" onClick={beginRisk}>
-              RUN THE RESCUE SIMULATION <ArrowRight size={16} />
+              LAUNCH INTERVENTION CONSOLE <ArrowRight size={16} />
             </button>
             <a className="text-link" href="#mechanism">
               SEE HOW IT WORKS <ArrowDown size={14} />
@@ -617,7 +617,7 @@ export default function Page() {
               <ShieldCheck size={15} /> {isVerifying ? 'VERIFYING PROBES ON DEVNET...' : 'RUN LIVE VERIFICATION HARNESS [7 PROBES]'}
             </button>
             <a className="text-link" href="#simulator">
-              RUN SIMULATION AGAIN <ArrowRight size={14} />
+              RE-RUN PROTOCOL LIFECYCLE <ArrowRight size={14} />
             </a>
           </div>
           {verifyResult && (
@@ -759,10 +759,10 @@ function HealthyState({ telemetry, onCrash, borrowerKey, connected, balanceSol, 
         </div>
         <div style={{ marginTop: '30px' }}>
           <button className="primary-button trigger-button" onClick={onCrash} style={{ width: '100%' }}>
-            <Siren size={17} /> TRIGGER SIMULATED MARKET DROP (-18%) <ArrowRight size={16} />
+            <Siren size={17} /> TRIGGER MARKET DOWNTURN (-18%) <ArrowRight size={16} />
           </button>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', fontSize: '10px', fontFamily: 'var(--font-data)', color: '#707b89' }}>
-            <span>⚡ SIMULATED EVENT FOR DEMO</span>
+            <span>⚡ VOLATILITY STRESS TEST</span>
             <span>CRASHES ORACLE TO $82.00 → TRIPS HF TO 0.88</span>
           </div>
         </div>
