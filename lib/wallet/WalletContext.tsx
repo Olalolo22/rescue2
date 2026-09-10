@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { PROTOCOL_CONSTANTS } from '@/lib/protocol/constants'
 
-interface SolanaWalletProvider {
+export interface SolanaWalletProvider {
   isPhantom?: boolean
   isSolflare?: boolean
   isBackpack?: boolean
@@ -14,6 +14,7 @@ interface SolanaWalletProvider {
   removeListener?(event: string, callback: (...args: any[]) => void): void
   signTransaction?(tx: any): Promise<any>
   signAllTransactions?(txs: any[]): Promise<any[]>
+  signAndSendTransaction?(tx: any, opts?: any): Promise<{ signature: string }>
 }
 
 declare global {
@@ -32,6 +33,8 @@ interface WalletContextType {
   walletName: string | null
   balanceSol: number | null
   isModalOpen: boolean
+  provider: SolanaWalletProvider | null
+  getProvider: () => SolanaWalletProvider | null
   connect: (type?: 'phantom' | 'solflare' | 'backpack') => Promise<void>
   disconnect: () => Promise<void>
   openModal: () => void
@@ -46,6 +49,8 @@ const WalletContext = createContext<WalletContextType>({
   walletName: null,
   balanceSol: null,
   isModalOpen: false,
+  provider: null,
+  getProvider: () => null,
   connect: async () => {},
   disconnect: async () => {},
   openModal: () => {},
@@ -189,6 +194,8 @@ export function SolanaWalletProviderComponent({ children }: { children: React.Re
         walletName,
         balanceSol,
         isModalOpen,
+        provider: getProvider(),
+        getProvider,
         connect,
         disconnect,
         openModal: () => setIsModalOpen(true),

@@ -27,6 +27,7 @@ import { WalletButton } from '@/components/WalletButton'
 import { useSolanaWallet } from '@/lib/wallet/WalletContext'
 import { PROTOCOL_CONSTANTS } from '@/lib/protocol/constants'
 import { KNOWN_PDAS } from '@/lib/protocol/pda'
+import { executeDevnetSettlementTx, SettleTxResult } from '@/lib/protocol/settleTx'
 import {
   MevInterceptLog,
   PositionTelemetry,
@@ -55,11 +56,16 @@ const phases: { id: Phase; label: string }[] = [
 ]
 
 export default function Page() {
-  const { publicKey, connected, balanceSol, openModal } = useSolanaWallet()
+  const { publicKey, connected, walletName, balanceSol, provider, getProvider, openModal } = useSolanaWallet()
   const [phase, setPhase] = useState<Phase>('healthy')
   const [seconds, setSeconds] = useState(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
   const [recordOpen, setRecordOpen] = useState(false)
   const [positionProfile, setPositionProfile] = useState<'wallet' | 'benchmark'>('benchmark')
+
+  // Live settlement on Solana Devnet
+  const [isSettlingOnChain, setIsSettlingOnChain] = useState(false)
+  const [settleTxResult, setSettleTxResult] = useState<SettleTxResult | null>(null)
+  const [settleNotice, setSettleNotice] = useState<string | null>(null)
 
   // Backend state — always live, no toggle
   const [liveSlot, setLiveSlot] = useState<number>(284719445)
@@ -145,6 +151,9 @@ export default function Page() {
     setPhase('healthy')
     setSeconds(PROTOCOL_CONSTANTS.AUCTION_DURATION_SECONDS)
     setRecordOpen(false)
+    setSettleTxResult(null)
+    setSettleNotice(null)
+    setIsSettlingOnChain(false)
     const isWallet = positionProfile === 'wallet' && connected && publicKey
     const solAmount = isWallet ? 1.00 : PROTOCOL_CONSTANTS.COLLATERAL_SOL
     const debtAmount = isWallet ? 80.00 : PROTOCOL_CONSTANTS.DEBT_USDC
@@ -160,6 +169,43 @@ export default function Page() {
     setMevLogs(INITIAL_MEV_LOGS)
     setIsProbingMev(false)
     setIsRunningE2e(false)
+  }
+
+  const handleSettle = async () => {
+    const activeProvider = provider || getProvider()
+    const savedUsd = (telemetry.debtUsd * 0.055).toFixed(2)
+
+    if (connected && publicKey && activeProvider) {
+      setIsSettlingOnChain(true)
+      setSettleNotice(null)
+      try {
+        const result = await executeDevnetSettlementTx({
+          provider: activeProvider,
+          walletPubkey: publicKey,
+          incidentId: activeIncident,
+          savedUsd,
+          penaltyBps: 250,
+        })
+        setSettleTxResult(result)
+        setPhase('settled')
+        setTelemetry((prev) => ({ ...prev, state: 'SETTLED', healthFactor: 1.2 }))
+      } catch (err: any) {
+        console.warn('[Rescue Protocol] Live Devnet settlement signature error/cancel:', err)
+        const isUserReject = /reject|cancel|declined/i.test(err?.message || '')
+        if (isUserReject) {
+          setSettleNotice('Wallet signature was cancelled in wallet. Settlement completed in simulated mode.')
+        } else {
+          setSettleNotice(`Live tx notice: ${err?.message || 'Transaction failed'}. Completed in simulated mode.`)
+        }
+        setPhase('settled')
+        setTelemetry((prev) => ({ ...prev, state: 'SETTLED', healthFactor: 1.2 }))
+      } finally {
+        setIsSettlingOnChain(false)
+      }
+    } else {
+      setPhase('settled')
+      setTelemetry((prev) => ({ ...prev, state: 'SETTLED', healthFactor: 1.2 }))
+    }
   }
 
   const beginRisk = () => {
@@ -526,16 +572,19 @@ export default function Page() {
         {phase === 'matched' && (
           <MatchedState
             telemetry={telemetry}
-            onSettle={() => {
-              setPhase('settled')
-              setTelemetry((prev) => ({ ...prev, state: 'SETTLED', healthFactor: 1.2 }))
-            }}
+            connected={connected}
+            walletName={walletName}
+            publicKey={publicKey}
+            isSettling={isSettlingOnChain}
+            onSettle={handleSettle}
           />
         )}
         {phase === 'settled' && (
           <SettledState
             telemetry={telemetry}
             activeIncident={activeIncident}
+            txResult={settleTxResult}
+            settleNotice={settleNotice}
             onRecord={() => setRecordOpen(true)}
             onReset={reset}
           />
@@ -645,7 +694,7 @@ export default function Page() {
             <i /> DEVNET PROTOTYPE
           </span>
           <span>TEE STATUS: SIMULATED</span>
-          <span>SETTLEMENT: SIMULATED</span>
+          <span>SETTLEMENT: {settleTxResult ? 'DEVNET L1 CONFIRMED' : 'SIMULATED'}</span>
         </div>
       </footer>
 
@@ -655,6 +704,7 @@ export default function Page() {
           copied={copiedPda}
           incidentId={activeIncident}
           telemetry={telemetry}
+          txResult={settleTxResult}
           onCopy={() => {
             navigator.clipboard?.writeText(KNOWN_PDAS.RESCUE_RECORD_0427)
             setCopiedPda(true)
@@ -826,7 +876,21 @@ function InterventionZone({ seconds, bids, mevLogs, isProbingMev, onProbeMev, on
   )
 }
 
-function MatchedState({ telemetry, onSettle }: { telemetry: PositionTelemetry; onSettle: () => void }) {
+function MatchedState({
+  telemetry,
+  connected,
+  walletName,
+  publicKey,
+  isSettling,
+  onSettle,
+}: {
+  telemetry: PositionTelemetry
+  connected: boolean
+  walletName: string | null
+  publicKey: string | null
+  isSettling: boolean
+  onSettle: () => void
+}) {
   const savedUsd = (telemetry.debtUsd * 0.055).toFixed(2)
   return (
     <div className="demo-state outcome-layout">
@@ -838,7 +902,26 @@ function MatchedState({ telemetry, onSettle }: { telemetry: PositionTelemetry; o
           <div><span>RESCUER</span><strong>2mP4...8vLk (Rescuer B)</strong></div>
           <div><span>SURPLUS SAVED</span><strong style={{ color: 'var(--green)' }}>+${savedUsd} (+5.50%)</strong></div>
         </div>
-        <button className="settle-button" onClick={onSettle}>COMMIT SETTLEMENT &amp; RESCUERECORD TO SOLANA L1 <ArrowRight size={16} /></button>
+        {isSettling ? (
+          <button className="settle-button" disabled style={{ opacity: 0.85, cursor: 'wait' }}>
+            <Zap className="animate-spin" size={16} /> WAITING FOR WALLET SIGNATURE &amp; L1 CONFIRMATION...
+          </button>
+        ) : (
+          <button className="settle-button" onClick={onSettle}>
+            COMMIT SETTLEMENT &amp; RESCUERECORD TO SOLANA L1 <ArrowRight size={16} />
+          </button>
+        )}
+        {connected && publicKey ? (
+          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', font: '10px var(--font-data)', color: 'var(--green)' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', boxShadow: '0 0 8px var(--green)' }} />
+            <span>Connected: <b>{walletName || 'Solana Wallet'}</b> ({publicKey.slice(0, 4)}...{publicKey.slice(-4)}) &middot; Live Devnet L1 settlement enabled</span>
+          </div>
+        ) : (
+          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', font: '10px var(--font-data)', color: '#687583' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#687583', display: 'inline-block' }} />
+            <span>Connect your wallet above to sign a live on-chain Devnet transaction</span>
+          </div>
+        )}
       </section>
       <aside className="compare-tease">
         <span>THE PENALTY GAP</span>
@@ -850,8 +933,20 @@ function MatchedState({ telemetry, onSettle }: { telemetry: PositionTelemetry; o
   )
 }
 
-function SettledState({ telemetry, activeIncident, onRecord, onReset }: {
-  telemetry: PositionTelemetry; activeIncident: string; onRecord: () => void; onReset: () => void
+function SettledState({
+  telemetry,
+  activeIncident,
+  txResult,
+  settleNotice,
+  onRecord,
+  onReset,
+}: {
+  telemetry: PositionTelemetry
+  activeIncident: string
+  txResult: SettleTxResult | null
+  settleNotice: string | null
+  onRecord: () => void
+  onReset: () => void
 }) {
   const publicFee = (telemetry.debtUsd * 0.08).toFixed(2)
   const rescueFee = (telemetry.debtUsd * 0.025).toFixed(2)
@@ -862,6 +957,44 @@ function SettledState({ telemetry, activeIncident, onRecord, onReset }: {
         <div className="eyebrow cyan-eyebrow"><Check size={15} /> SETTLEMENT VERIFIED &middot; RESCUERECORD COMMITTED</div>
         <h3>+${savedUsd} BORROWER<br /><em>EQUITY RETAINED</em></h3>
         <p>The position was rescued at 2.50% penalty instead of the standard 8.00% public liquidation fee. The cryptographic outcome is permanent, portable, and verifiable on Solana L1.</p>
+        
+        {txResult && (
+          <div style={{ margin: '18px 0', padding: '14px 18px', border: '1px solid #33727a', background: '#101b1f', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Check size={16} style={{ color: 'var(--green)', flexShrink: 0 }} />
+              <div style={{ font: '10px var(--font-data)', color: '#d7e9eb' }}>
+                <span style={{ color: '#829ba0' }}>SOLANA DEVNET TX:</span>{' '}
+                <strong style={{ color: 'var(--cyan)' }}>{txResult.signature.slice(0, 10)}...{txResult.signature.slice(-8)}</strong>
+                <span style={{ marginLeft: '10px', color: '#687583' }}>(Slot {txResult.slot.toLocaleString()})</span>
+              </div>
+            </div>
+            <a
+              href={txResult.explorerUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                font: '10px var(--font-data)',
+                color: 'var(--cyan)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                textDecoration: 'none',
+                borderBottom: '1px solid var(--cyan)',
+                paddingBottom: '2px',
+                letterSpacing: '.04em',
+              }}
+            >
+              EXPLORER PROOF <ExternalLink size={12} />
+            </a>
+          </div>
+        )}
+
+        {settleNotice && (
+          <div style={{ margin: '14px 0', padding: '10px 14px', border: '1px solid #3a3248', background: '#171420', font: '10px var(--font-data)', color: '#a59db5' }}>
+            {settleNotice}
+          </div>
+        )}
+
         <div className="settlement-buttons">
           <button className="record-button" onClick={onRecord}><FileCheck2 size={16} /> VIEW RESCUERECORD PDA</button>
           <button className="subtle-button" onClick={onReset}>RUN ANOTHER INCIDENT</button>
@@ -899,8 +1032,20 @@ function FallbackState({ onReset }: { onReset: () => void }) {
   )
 }
 
-function RescueRecord({ copied, incidentId, telemetry, onCopy, onClose }: {
-  copied: boolean; incidentId: string; telemetry: PositionTelemetry; onCopy: () => void; onClose: () => void
+function RescueRecord({
+  copied,
+  incidentId,
+  telemetry,
+  txResult,
+  onCopy,
+  onClose,
+}: {
+  copied: boolean
+  incidentId: string
+  telemetry: PositionTelemetry
+  txResult: SettleTxResult | null
+  onCopy: () => void
+  onClose: () => void
 }) {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const savedUsd = (telemetry.debtUsd * 0.055).toFixed(2)
@@ -920,13 +1065,37 @@ function RescueRecord({ copied, incidentId, telemetry, onCopy, onClose }: {
         <p className="record-copy">Cryptographic receipt of intervention, reverse auction matching, and L1 settlement.</p>
         <div className="record-list">
           <RecordRow label="RESCUERECORD PDA" value={KNOWN_PDAS.RESCUE_RECORD_0427.slice(0, 18) + '...'} green />
-          <RecordRow label="PROGRAM ID" value={PROTOCOL_CONSTANTS.PROGRAM_ID.slice(0, 14) + '...'} />
-          <RecordRow label="L1 SLOT" value="284,719,445" />
+          {txResult ? (
+            <>
+              <RecordRow label="L1 STATUS" value="CONFIRMED ON SOLANA DEVNET" green />
+              <RecordRow label="TX SIGNATURE" value={txResult.signature.slice(0, 16) + '...'} green />
+              <RecordRow label="L1 SLOT" value={txResult.slot.toLocaleString()} />
+            </>
+          ) : (
+            <>
+              <RecordRow label="L1 STATUS" value="SIMULATED PROTOTYPE" />
+              <RecordRow label="PROGRAM ID" value={PROTOCOL_CONSTANTS.PROGRAM_ID.slice(0, 14) + '...'} />
+              <RecordRow label="L1 SLOT" value="284,719,445" />
+            </>
+          )}
           <RecordRow label="WINNING PENALTY" value="2.50% (250 bps)" green />
           <RecordRow label="PUBLIC PENALTY" value="8.00% (800 bps)" />
           <RecordRow label="SURPLUS SAVED" value={`+$${savedUsd} (+5.50%)`} green />
           <RecordRow label="INVARIANTS" value="I1 · I6 · I10 VERIFIED" green />
         </div>
+        
+        {txResult && (
+          <a
+            href={txResult.explorerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="record-button full-button"
+            style={{ textDecoration: 'none', justifyContent: 'center', marginBottom: '10px' }}
+          >
+            <ExternalLink size={14} /> VIEW ON SOLANA EXPLORER (DEVNET)
+          </a>
+        )}
+
         <button className="record-button full-button" onClick={onCopy}>
           <Copy size={15} /> {copied ? 'COPIED PDA TO CLIPBOARD!' : 'COPY RESCUERECORD PDA'}
         </button>
